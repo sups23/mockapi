@@ -2,6 +2,5 @@
 !/public/index.php
 /api/*
 !/api/posts/
-!/api/posts/schema.json
-!/api/posts/list.json
-!/api/posts/seed.json
+api/posts/id/
+api/posts/.write.lock

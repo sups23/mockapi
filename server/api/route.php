@@ -5,6 +5,32 @@ require_once __DIR__ . '/repository.php';
 require_once __DIR__ . '/../../server/helpers.php';
 require_once __DIR__ . '/list.php';
 
+function parse_api_url($uri) {
+    if (preg_match('#^/api/([a-z0-9-]+)(?:/(\d+)|/(reset))?$#', $uri, $m)) {
+        return [
+            'resource' => $m[1],
+            'id' => isset($m[2]) ? intval($m[2]) : null,
+            'reset' => isset($m[3]) && $m[3] === 'reset',
+        ];
+    }
+    return null;
+}
+
+function is_crud_resource($docRoot, $resource) {
+    return file_exists($docRoot . '/api/' . $resource . '/list.json')
+        && file_exists($docRoot . '/api/' . $resource . '/schema.json');
+}
+
+function load_resource_disable($docRoot, $resource) {
+    $listPath = $docRoot . '/api/' . $resource . '/list.json';
+    if (!file_exists($listPath)) return [];
+    $data = json_decode(file_get_contents($listPath), true);
+    if (!is_array($data)) return [];
+    $disable = $data['disable'] ?? [];
+    if (!is_array($disable)) return [];
+    return $disable;
+}
+
 function load_route_file($docRoot, $resource) {
     $path = $docRoot . '/routes/' . $resource . '.json';
     if (!file_exists($path)) {
@@ -34,9 +60,9 @@ function load_route_file($docRoot, $resource) {
         $isStatic = !str_contains($urlPattern, '{');
 
         foreach ($methods as $method => $config) {
-            $operation = $config['operation'];
+            $operation = 'mock';
             $status = isset($config['status']) ? (int)$config['status'] : 200;
-            $explicitPath = $config['path'] ?? null;
+            $explicitPath = $config['file'] ?? $config['path'] ?? null;
 
             $jsonPath = resolve_operation_path($operation, $urlPattern, $explicitPath);
             if ($jsonPath === false) {
@@ -79,42 +105,21 @@ function validate_path_entry($url, $methods) {
             return "Route $url $method: config must be an object";
         }
 
-        $operation = $config['operation'] ?? null;
-        if (!is_string($operation)) {
-            return "Route $url $method: operation is required";
+        $file = $config['file'] ?? $config['path'] ?? null;
+        if (empty($file)) {
+            return "Route $url $method: file or path is required";
         }
-
-        $validOps = ['create', 'read', 'list', 'patch', 'delete', 'mock', 'reset'];
-        if (!in_array($operation, $validOps, true)) {
-            return "Route $url $method: invalid operation '$operation'. Must be: " . implode(', ', $validOps);
+        if (!is_string($file)) {
+            return "Route $url $method: file must be a string";
         }
-
-        $methodUpper = strtoupper($method);
-        $comboMap = [
-            'list' => 'GET', 'create' => 'POST', 'read' => 'GET',
-            'patch' => 'PATCH', 'delete' => 'DELETE', 'reset' => 'POST',
-        ];
-        if (isset($comboMap[$operation]) && $methodUpper !== $comboMap[$operation]) {
-            return "Route $url $method: operation '$operation' requires method " . $comboMap[$operation];
-        }
-
-        if ($operation === 'mock' && empty($config['path'])) {
-            return "Route $url $method: mock operation requires a path";
+        if (!str_starts_with($file, 'api/')) {
+            return "Route $url $method: file must start with api/";
         }
 
         if (isset($config['status'])) {
             $s = (int)$config['status'];
             if ($s < 100 || $s > 599) {
                 return "Route $url $method: status must be 100-599";
-            }
-        }
-
-        if (isset($config['path'])) {
-            if (!is_string($config['path'])) {
-                return "Route $url $method: path must be a string";
-            }
-            if (!str_starts_with($config['path'], 'api/')) {
-                return "Route $url $method: path must start with api/";
             }
         }
 
@@ -139,22 +144,7 @@ function validate_path_entry($url, $methods) {
 }
 
 function resolve_operation_path($operation, $urlPattern, $explicitPath) {
-    if ($operation === 'mock') {
-        return $explicitPath;
-    }
-    if ($operation === 'reset') {
-        return null;
-    }
-
-    $resource = resource_from_url($urlPattern);
-    if ($resource === null) return false;
-
-    if ($operation === 'list' || $operation === 'create') {
-        return 'api/' . $resource . '/list.json';
-    }
-
-    if ($explicitPath !== null) return $explicitPath;
-    return 'api/' . $resource . '/id/{id}.json';
+    return $explicitPath;
 }
 
 function compile_path($pattern) {
@@ -278,6 +268,129 @@ function route_error($status, $message, $headers = []) {
 function handle_api_route($docRoot, $uri) {
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+    $parts = parse_api_url($uri);
+    if ($parts !== null && is_crud_resource($docRoot, $parts['resource'])) {
+        handle_crud_route($docRoot, $uri, $method, $parts);
+        return;
+    }
+
+    handle_custom_route($docRoot, $uri, $method);
+}
+
+function handle_crud_route($docRoot, $uri, $method, $parts) {
+    $resource = $parts['resource'];
+    $id = $parts['id'];
+    $reset = $parts['reset'];
+
+    $disable = load_resource_disable($docRoot, $resource);
+    $validOps = ['list', 'create', 'read', 'patch', 'delete', 'reset'];
+    foreach ($disable as $op) {
+        if (!in_array($op, $validOps, true)) {
+            route_error(500, "Invalid disable operation '$op' in list.json for resource '$resource'");
+            return;
+        }
+    }
+    if (count($disable) !== count(array_unique($disable))) {
+        route_error(500, "Duplicate operations in disable for resource '$resource'");
+        return;
+    }
+
+    if ($method === 'OPTIONS') {
+        handle_options_crud($uri, $disable, $parts);
+        return;
+    }
+
+    $operation = null;
+    if ($reset && $method === 'POST') {
+        $operation = 'reset';
+    } elseif ($id !== null) {
+        switch ($method) {
+            case 'GET': $operation = 'read'; break;
+            case 'PATCH': $operation = 'patch'; break;
+            case 'DELETE': $operation = 'delete'; break;
+        }
+    } elseif (!$reset && $id === null) {
+        switch ($method) {
+            case 'GET': $operation = 'list'; break;
+            case 'POST': $operation = 'create'; break;
+        }
+    }
+
+    if ($operation === null) {
+        route_error(405, 'Method not allowed');
+        return;
+    }
+
+    if (in_array($operation, $disable, true)) {
+        route_error(404, 'Not found');
+        return;
+    }
+
+    @init_resource($docRoot, $resource);
+
+    switch ($operation) {
+        case 'list':
+            serve_list_route($docRoot, $resource);
+            break;
+        case 'create':
+            handle_create_route($docRoot, $resource);
+            break;
+        case 'read':
+            serve_crud_read($docRoot, $resource, $id);
+            break;
+        case 'patch':
+            handle_patch_route($docRoot, $resource, $id);
+            break;
+        case 'delete':
+            handle_delete_route($docRoot, $resource, $id);
+            break;
+        case 'reset':
+            handle_reset_route($docRoot, $resource);
+            break;
+    }
+}
+
+function handle_options_crud($uri, $disable, $parts) {
+    $id = $parts['id'];
+    $reset = $parts['reset'];
+
+    $allowed = [];
+    if ($reset) {
+        if (!in_array('reset', $disable, true)) $allowed[] = 'POST';
+    } elseif ($id !== null) {
+        if (!in_array('read', $disable, true)) $allowed[] = 'GET';
+        if (!in_array('patch', $disable, true)) $allowed[] = 'PATCH';
+        if (!in_array('delete', $disable, true)) $allowed[] = 'DELETE';
+    } else {
+        if (!in_array('list', $disable, true)) $allowed[] = 'GET';
+        if (!in_array('create', $disable, true)) $allowed[] = 'POST';
+    }
+
+    if (empty($allowed)) {
+        route_error(404, 'Not found');
+        return;
+    }
+
+    $allow = implode(', ', array_merge($allowed, ['OPTIONS']));
+    http_response_code(204);
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: ' . $allow);
+    header('Allow: ' . $allow);
+
+    $reqHeaders = $_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS'] ?? '';
+    if ($reqHeaders !== '') {
+        $names = array_map('trim', explode(',', $reqHeaders));
+        $valid = array_filter($names, function($h) {
+            return preg_match('/^[A-Za-z0-9!#$%&\'*+\-.^_`|~]+$/', $h);
+        });
+        if (!empty($valid)) {
+            header('Access-Control-Allow-Headers: ' . implode(', ', $valid));
+        }
+    }
+    header('Access-Control-Allow-Headers: Content-Type', false);
+}
+
+function handle_custom_route($docRoot, $uri, $method) {
     $resource = resource_from_url($uri);
     if ($resource === null) {
         route_error(404, 'Not found');
@@ -295,7 +408,7 @@ function handle_api_route($docRoot, $uri) {
     }
 
     if ($method === 'OPTIONS') {
-        handle_options($uri, $routes);
+        handle_options_custom($uri, $routes);
         return;
     }
 
@@ -317,37 +430,10 @@ function handle_api_route($docRoot, $uri) {
         return;
     }
 
-    $res = resource_from_url($uri);
-    if ($res !== null) {
-        @init_resource($docRoot, $res);
-    }
-
-    switch ($route['operation']) {
-        case 'read':
-        case 'mock':
-            serve_data_file_route($docRoot, $route, $params);
-            break;
-        case 'list':
-            serve_list_route($docRoot, $route);
-            break;
-        case 'create':
-            handle_create_route($docRoot, $route);
-            break;
-        case 'patch':
-            handle_patch_route($docRoot, $route, $params);
-            break;
-        case 'delete':
-            handle_delete_route($docRoot, $route, $params);
-            break;
-        case 'reset':
-            handle_reset_route($docRoot, $route);
-            break;
-        default:
-            route_error(500, 'Unknown operation');
-    }
+    serve_custom_mock($docRoot, $route, $params);
 }
 
-function handle_options($uri, $routes) {
+function handle_options_custom($uri, $routes) {
     $pathMethods = get_path_methods($routes, $uri);
     if (empty($pathMethods)) {
         route_error(404, 'Not found');
@@ -373,7 +459,7 @@ function handle_options($uri, $routes) {
     header('Access-Control-Allow-Headers: Content-Type', false);
 }
 
-function serve_data_file_route($docRoot, $route, $params) {
+function serve_custom_mock($docRoot, $route, $params) {
     list($filePath, $err) = resolve_route_file($docRoot, $route['jsonPath'], $params);
     if ($err !== null) {
         route_error(404, 'File not found');
@@ -389,14 +475,8 @@ function serve_data_file_route($docRoot, $route, $params) {
     send_route_response($route['status'], $data, $route['headers']);
 }
 
-function serve_list_route($docRoot, $route) {
-    $resource = resource_from_url($route['url']);
-    if ($resource === null) {
-        route_error(500, 'Could not determine resource');
-        return;
-    }
-
-    $listPath = $docRoot . '/' . safe_path($route['jsonPath']);
+function serve_list_route($docRoot, $resource) {
+    $listPath = $docRoot . '/api/' . $resource . '/list.json';
     $listPath = realpath($listPath);
     if ($listPath === false || !str_starts_with($listPath . '/', $docRoot . '/api/')) {
         route_error(404, 'List configuration file not found');
@@ -507,13 +587,7 @@ function validate_patch_body($body, $schema) {
     return [$fields, null];
 }
 
-function handle_create_route($docRoot, $route) {
-    $resource = resource_from_url($route['url']);
-    if ($resource === null) {
-        route_error(500, 'Could not determine resource');
-        return;
-    }
-
+function handle_create_route($docRoot, $resource) {
     $resDir = resource_dir($docRoot, $resource);
     $schemaPath = $resDir . '/schema.json';
     $listPath = $resDir . '/list.json';
@@ -605,27 +679,37 @@ function handle_create_route($docRoot, $route) {
         }
 
         release_lock($handle);
-        send_route_response($route['status'], $item, $route['headers']);
+        send_route_response(201, $item);
     } catch (\Throwable $e) {
         release_lock($handle);
         route_error(500, 'Failed to create record');
     }
 }
 
-function handle_patch_route($docRoot, $route, $params) {
-    list($recordPath, $fileErr) = resolve_route_file($docRoot, $route['jsonPath'], $params);
-    if ($fileErr !== null || !file_exists($recordPath)) {
+function serve_crud_read($docRoot, $resource, $id) {
+    $recordPath = $docRoot . '/api/' . $resource . '/id/' . $id . '.json';
+    if (!file_exists($recordPath)) {
         route_error(404, 'Record not found');
         return;
     }
 
-    $resource = resource_from_url($route['url']);
-    if ($resource === null) {
-        route_error(500, 'Could not determine resource');
+    list($data, $dataErr) = read_json($recordPath);
+    if ($dataErr !== null) {
+        route_error(500, 'Invalid JSON in record file');
         return;
     }
 
-    $schemaPath = resource_dir($docRoot, $resource) . '/schema.json';
+    send_route_response(200, $data);
+}
+
+function handle_patch_route($docRoot, $resource, $id) {
+    $recordPath = $docRoot . '/api/' . $resource . '/id/' . $id . '.json';
+    if (!file_exists($recordPath)) {
+        route_error(404, 'Record not found');
+        return;
+    }
+
+    $schemaPath = $docRoot . '/api/' . $resource . '/schema.json';
     list($schema, $schemaErr) = load_schema($schemaPath);
     if ($schemaErr !== null) {
         route_error(500, 'Schema: ' . $schemaErr);
@@ -688,16 +772,16 @@ function handle_patch_route($docRoot, $route, $params) {
         }
 
         release_lock($handle);
-        send_route_response($route['status'], $item, $route['headers']);
+        send_route_response(200, $item);
     } catch (\Throwable $e) {
         release_lock($handle);
         route_error(500, 'Failed to update record');
     }
 }
 
-function handle_delete_route($docRoot, $route, $params) {
-    list($recordPath, $fileErr) = resolve_route_file($docRoot, $route['jsonPath'], $params);
-    if ($fileErr !== null || !file_exists($recordPath)) {
+function handle_delete_route($docRoot, $resource, $id) {
+    $recordPath = $docRoot . '/api/' . $resource . '/id/' . $id . '.json';
+    if (!file_exists($recordPath)) {
         route_error(404, 'Record not found');
         return;
     }
@@ -714,11 +798,6 @@ function handle_delete_route($docRoot, $route, $params) {
     }
     $clientVersion = (int)$body['version'];
 
-    $resource = resource_from_url($route['url']);
-    if ($resource === null) {
-        route_error(500, 'Could not determine resource');
-        return;
-    }
     $resDir = resource_dir($docRoot, $resource);
 
     list($handle, $lockErr) = acquire_lock($resDir);
@@ -755,23 +834,17 @@ function handle_delete_route($docRoot, $route, $params) {
         }
 
         release_lock($handle);
-        send_route_response($route['status'], [
+        send_route_response(200, [
             'deleted' => true,
-            'id' => $item['id'] ?? ($params['id'] ?? null),
-        ], $route['headers']);
+            'id' => $item['id'] ?? $id,
+        ]);
     } catch (\Throwable $e) {
         release_lock($handle);
         route_error(500, 'Failed to delete record');
     }
 }
 
-function handle_reset_route($docRoot, $route) {
-    $resource = resource_from_url($route['url']);
-    if ($resource === null) {
-        route_error(500, 'Could not determine resource');
-        return;
-    }
-
+function handle_reset_route($docRoot, $resource) {
     list($result, $err) = reset_resource($docRoot, $resource);
     if ($err !== null) {
         $code = str_contains($err, 'No seed.json') ? 400 : 500;
@@ -779,54 +852,100 @@ function handle_reset_route($docRoot, $route) {
         return;
     }
 
-    send_route_response($route['status'], $result, $route['headers']);
+    send_route_response(200, $result);
 }
 
 function get_route_groups($docRoot) {
-    $dir = $docRoot . '/routes';
-    if (!is_dir($dir)) {
-        return ['error' => 'routes/ directory not found'];
-    }
-
-    $files = glob($dir . '/*.json');
-    if ($files === false || count($files) === 0) {
-        return ['error' => 'No route files found in routes/'];
-    }
-    sort($files);
-
     $groups = [];
 
-    foreach ($files as $file) {
-        $filename = basename($file);
-        $groupId = pathinfo($filename, PATHINFO_FILENAME);
+    $apiDir = $docRoot . '/api';
+    if (is_dir($apiDir)) {
+        $resources = glob($apiDir . '/*', GLOB_ONLYDIR);
+        foreach ($resources as $resDir) {
+            $resource = basename($resDir);
+            if (!is_crud_resource($docRoot, $resource)) continue;
 
-        $content = file_get_contents($file);
-        $decoded = json_decode($content, true);
-        if (!is_array($decoded)) continue;
+            $listPath = $resDir . '/list.json';
+            $listData = json_decode(file_get_contents($listPath), true);
+            if (!is_array($listData)) continue;
 
-        $routes = [];
-        foreach ($decoded as $urlPattern => $methods) {
-            if (!is_array($methods)) continue;
-            foreach ($methods as $method => $config) {
-                if (!is_array($config)) continue;
+            $disable = $listData['disable'] ?? [];
+            if (!is_array($disable)) $disable = [];
+
+            $routes = [];
+            $urlMap = [
+                'list' => ['/api/' . $resource, 'GET', 'list', 200],
+                'create' => ['/api/' . $resource, 'POST', 'create', 201],
+                'read' => ['/api/' . $resource . '/{id}', 'GET', 'read', 200],
+                'patch' => ['/api/' . $resource . '/{id}', 'PATCH', 'patch', 200],
+                'delete' => ['/api/' . $resource . '/{id}', 'DELETE', 'delete', 200],
+                'reset' => ['/api/' . $resource . '/reset', 'POST', 'reset', 200],
+            ];
+
+            foreach ($urlMap as $op => $info) {
+                if (in_array($op, $disable, true)) continue;
                 $routes[] = [
-                    'method' => strtoupper($method),
-                    'url' => $urlPattern,
-                    'status' => (int)($config['status'] ?? 200),
-                    'operation' => $config['operation'] ?? 'mock',
-                    'path' => $config['path'] ?? null,
-                    'headers' => $config['headers'] ?? [],
+                    'method' => $info[1],
+                    'url' => $info[0],
+                    'status' => $info[3],
+                    'operation' => $info[2],
+                    'path' => null,
+                    'headers' => [],
+                ];
+            }
+
+            if (!empty($routes)) {
+                $groups[] = [
+                    'id' => $resource,
+                    'label' => ucwords(str_replace(['-', '_'], ' ', $resource)),
+                    'file' => 'api/' . $resource . '/list.json',
+                    'routes' => $routes,
                 ];
             }
         }
-
-        $groups[] = [
-            'id' => $groupId,
-            'label' => ucwords(str_replace(['-', '_'], ' ', $groupId)),
-            'file' => 'routes/' . $filename,
-            'routes' => $routes,
-        ];
     }
+
+    $routesDir = $docRoot . '/routes';
+    if (is_dir($routesDir)) {
+        $files = glob($routesDir . '/*.json');
+        foreach ($files as $file) {
+            $filename = basename($file);
+            $groupId = pathinfo($filename, PATHINFO_FILENAME);
+
+            if (is_crud_resource($docRoot, $groupId)) continue;
+
+            $content = file_get_contents($file);
+            $decoded = json_decode($content, true);
+            if (!is_array($decoded)) continue;
+
+            $routes = [];
+            foreach ($decoded as $urlPattern => $methods) {
+                if (!is_array($methods)) continue;
+                foreach ($methods as $method => $config) {
+                    if (!is_array($config)) continue;
+                    $routes[] = [
+                        'method' => strtoupper($method),
+                        'url' => $urlPattern,
+                        'status' => (int)($config['status'] ?? 200),
+                        'operation' => 'mock',
+                        'path' => $config['file'] ?? $config['path'] ?? null,
+                        'headers' => $config['headers'] ?? [],
+                    ];
+                }
+            }
+
+            if (!empty($routes)) {
+                $groups[] = [
+                    'id' => $groupId,
+                    'label' => ucwords(str_replace(['-', '_'], ' ', $groupId)),
+                    'file' => 'routes/' . $filename,
+                    'routes' => $routes,
+                ];
+            }
+        }
+    }
+
+    usort($groups, function($a, $b) { return strcmp($a['label'], $b['label']); });
 
     return $groups;
 }

@@ -18,51 +18,7 @@ function is_reserved_model($name) {
 }
 
 function resource_exists($docRoot, $model) {
-    return file_exists($docRoot . '/routes/' . $model . '.json')
-        || is_dir($docRoot . '/api/' . $model);
-}
-
-function build_route_file($model, $operations) {
-    $routes = [];
-
-    $hasListOrCreate = !empty($operations['list']) || !empty($operations['create']);
-    if ($hasListOrCreate) {
-        $entry = [];
-        if (!empty($operations['list'])) {
-            $entry['GET'] = ['operation' => 'list', 'status' => 200];
-        }
-        if (!empty($operations['create'])) {
-            $entry['POST'] = ['operation' => 'create', 'status' => 201];
-        }
-        if (!empty($entry)) {
-            $routes['/api/' . $model] = $entry;
-        }
-    }
-
-    $hasDetail = !empty($operations['read']) || !empty($operations['patch']) || !empty($operations['delete']);
-    if ($hasDetail) {
-        $entry = [];
-        if (!empty($operations['read'])) {
-            $entry['GET'] = ['operation' => 'read', 'status' => 200];
-        }
-        if (!empty($operations['patch'])) {
-            $entry['PATCH'] = ['operation' => 'patch', 'status' => 200];
-        }
-        if (!empty($operations['delete'])) {
-            $entry['DELETE'] = ['operation' => 'delete', 'status' => 200];
-        }
-        if (!empty($entry)) {
-            $routes['/api/' . $model . '/{id}'] = $entry;
-        }
-    }
-
-    if (!empty($operations['reset'])) {
-        $routes['/api/' . $model . '/reset'] = [
-            'POST' => ['operation' => 'reset', 'status' => 200],
-        ];
-    }
-
-    return $routes;
+    return is_dir($docRoot . '/api/' . $model);
 }
 
 function build_complete_schema($userFields) {
@@ -199,7 +155,13 @@ function handle_resource_config($docRoot) {
 
     $completeSchema = build_complete_schema($userSchema);
     $listFields = build_list_fields($userSchema);
-    $routeConfig = build_route_file($model, $selectedOps);
+
+    $disabledOps = [];
+    foreach ($validOps as $op) {
+        if (empty($selectedOps[$op])) {
+            $disabledOps[] = $op;
+        }
+    }
 
     $ids = [];
     foreach ($seed as $i => $record) {
@@ -238,16 +200,6 @@ function handle_resource_config($docRoot) {
     try {
         $resDir = $docRoot . '/api/' . $model;
         $idDir = $resDir . '/id';
-        $routesDir = $docRoot . '/routes';
-
-        if (!is_dir($routesDir)) {
-            if (!mkdir($routesDir, 0755, true)) {
-                http_response_code(500);
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['error' => 'Could not create routes directory'], JSON_PRETTY_PRINT) . "\n";
-                return;
-            }
-        }
 
         if (!is_dir($resDir)) {
             if (!mkdir($resDir, 0755, true)) {
@@ -270,17 +222,6 @@ function handle_resource_config($docRoot) {
             $touched[] = $idDir;
         }
 
-        $routePath = $routesDir . '/' . $model . '.json';
-        list($ok, $writeErr) = write_json_atomic($routesDir, $model . '.json', $routeConfig);
-        if (!$ok) {
-            cleanup_touched($touched);
-            http_response_code(500);
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['error' => 'Failed to write route file: ' . $writeErr], JSON_PRETTY_PRINT) . "\n";
-            return;
-        }
-        $touched[] = $routePath;
-
         list($ok, $writeErr) = write_json_atomic($resDir, 'schema.json', $completeSchema);
         if (!$ok) {
             cleanup_touched($touched);
@@ -294,6 +235,7 @@ function handle_resource_config($docRoot) {
             'fields' => $listFields,
             '_limit' => $limit,
             'last_id' => $maxId,
+            'disable' => $disabledOps,
         ]);
         if (!$ok) {
             cleanup_touched($touched);
@@ -336,7 +278,8 @@ function handle_resource_config($docRoot) {
         echo json_encode([
             'created' => true,
             'resource' => $model,
-            'routes' => $generatedOps,
+            'enabled' => $generatedOps,
+            'disabled' => $disabledOps,
             'limit' => $limit,
             'fields' => count($userSchema),
             'seeded' => count($seed),

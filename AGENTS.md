@@ -24,25 +24,35 @@ Useful URLs:
 ```text
 /                 Swagger-style API explorer
 /api-test         Explorer alias
-/api/posts        Posts collection
-/api/health       Health check mock
+/api/posts        Posts collection (convention-based CRUD)
+/api/health       Health check mock (routes/*.json)
 ```
 
 ## Architecture
 
 - `public/index.php` is the PHP-FPM/Herd front controller.
 - `router.php` is also the built-in-server router when started with the command above.
-- `server/api/route.php` loads keyed route files from `routes/` and dispatches operations.
+- `server/api/route.php` dispatches CRUD requests by URL convention and custom mock routes from `routes/`.
 - `server/api/schema.php` parses structured schema definitions with types, defaults, and flags.
 - `server/api/repository.php` provides file locking, atomic writes, seed initialization, and reset.
-- `server/api/resource-config.php` validates and atomically generates new CRUD resource packages (route file, schema, list config, seed data, and directory structure).
+- `server/api/resource-config.php` validates and atomically generates new CRUD resource packages.
 - `server/api/list.php` implements filtering, sorting, projection, pagination, and schema-aware filter validation.
 - `server/helpers.php` contains nested-field, query, and JSON header helpers.
 - `api-test.php` renders the explorer shown at `/` and `/api-test`.
 
-## Public Routes
+## CRUD Resources (convention-based)
 
-Each resource supports:
+Any directory under `api/` containing both `schema.json` and `list.json` is automatically a CRUD resource. No route file needed.
+
+```text
+api/posts/
+  schema.json    # Field types, defaults, editability
+  list.json      # Fields projection, pagination, disable
+  seed.json      # Initial data (optional, [] = start empty)
+  id/            # Runtime records
+```
+
+Automatic endpoints:
 
 ```text
 GET     /api/{resource}
@@ -51,18 +61,38 @@ GET     /api/{resource}/{id}
 PATCH   /api/{resource}/{id}
 DELETE  /api/{resource}/{id}
 POST    /api/{resource}/reset
-GET     /api/health
 ```
 
-Additionally:
+Disable operations in `list.json`:
 
-```text
-POST    /routes-config     Create a new CRUD resource (localhost only)
+```json
+{
+  "fields": ["id", "title", "version"],
+  "_limit": 10,
+  "last_id": 0,
+  "disable": ["delete", "reset"]
+}
 ```
 
-Routes are defined in `routes/{resource}.json` files. The route file is selected by
-the first path segment after `/api/`. Exact static path keys are matched before
-dynamic `{param}` patterns.
+Supported: `list`, `create`, `read`, `patch`, `delete`, `reset`. Disabled operations return `404`.
+
+## Mock Routes (routes/*.json)
+
+Static JSON endpoints with no persistence. Only for non-CRUD mocks:
+
+```json
+{
+  "/api/health": {
+    "GET": { "file": "api/mocks/health.json" }
+  }
+}
+```
+
+- `file` or `path` (required): JSON file under `api/`
+- `status` (optional, default 200): custom response code
+- `headers` (optional): extra response headers
+
+Exact static paths matched before dynamic `{param}` patterns.
 
 ## File Storage
 
@@ -74,15 +104,13 @@ api/{resource}/
   id/{number}.json
 ```
 
-IDs are sequential integers tracked by `list.json:last_id` and checked against
-existing record filenames before creation.
+IDs are sequential integers tracked by `list.json:last_id` and checked against existing record filenames before creation.
 
-`schema.json` defines field types, editability flags, defaults, and automatic status.
-Reserved server-managed fields are `id`, `createdAt`, `modifiedAt`, and `version`.
+`schema.json` defines field types, editability flags, defaults, and automatic status. Reserved server-managed fields are `id`, `createdAt`, `modifiedAt`, and `version`.
 
 ## Mutation Rules
 
-- `POST` creates a numeric ID, applies schema defaults, returns `201` with `Location` header.
+- `POST` creates a numeric ID, applies schema defaults, returns `201`.
 - `PATCH` applies partial updates. Server-managed and non-editable fields are rejected with `400`.
 - `DELETE` requires `{"version": <number>}` in the request body. Stale versions return `409`.
 - All mutations acquire exclusive file locks and write atomically via temp-file-and-rename.
@@ -107,6 +135,7 @@ The homepage is the primary API explorer. It includes:
 ## Seed and Reset
 
 - `seed.json` is the canonical fixture dataset. Automatically hydrated on first access when `id/` is empty.
+- Empty seed `[]` means the app starts with no records.
 - `POST /api/{resource}/reset` wipes runtime records and re-seeds. Used for test isolation and CI.
 - Seed records require unique positive integer `id` values and type-valid fields.
 
@@ -129,5 +158,4 @@ curl -s http://localhost:8000/api/health
 curl -s http://localhost:8000/
 ```
 
-PHP changes require restarting the built-in server. JSON data changes are read
-on the next request. Route file changes take effect immediately.
+PHP changes require restarting the built-in server. JSON data changes are read on the next request. Route file changes take effect immediately.

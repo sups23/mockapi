@@ -20,6 +20,11 @@ function dispatch($docRoot) {
         return;
     }
 
+    if ($uri === '/todo' || $uri === '/todo/' || $uri === '/todo/index.php') {
+        require $docRoot . '/public/todo/index.php';
+        return;
+    }
+
     json_header();
     handle_api_route($docRoot, $uri);
 }

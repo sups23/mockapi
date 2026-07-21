@@ -1,9 +1,0 @@
-{
-  "/api/custom-data/custom-url": {
-    "PUT": {
-      "operation": "mock",
-      "status": 200,
-      "path": "api/custom-data-file/custom-url.json"
-    }
-  }
-}

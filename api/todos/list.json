@@ -1,0 +1,11 @@
+{
+    "fields": [
+        "id",
+        "title",
+        "description",
+        "isCompleted",
+        "version"
+    ],
+    "_limit": 10,
+    "last_id": 3
+}

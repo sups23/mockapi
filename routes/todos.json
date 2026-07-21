@@ -1,0 +1,32 @@
+{
+    "/api/todos": {
+        "GET": {
+            "operation": "list",
+            "status": 200
+        },
+        "POST": {
+            "operation": "create",
+            "status": 201
+        }
+    },
+    "/api/todos/{id}": {
+        "GET": {
+            "operation": "read",
+            "status": 200
+        },
+        "PATCH": {
+            "operation": "patch",
+            "status": 200
+        },
+        "DELETE": {
+            "operation": "delete",
+            "status": 200
+        }
+    },
+    "/api/todos/reset": {
+        "POST": {
+            "operation": "reset",
+            "status": 200
+        }
+    }
+}

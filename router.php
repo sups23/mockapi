@@ -20,12 +20,6 @@ function dispatch($docRoot) {
         return;
     }
 
-    if ($uri === '/todo' || $uri === '/todo/' || $uri === '/todo/index.html') {
-        header('Content-Type: text/html; charset=utf-8');
-        readfile($docRoot . '/public/todo/index.html');
-        return;
-    }
-
     json_header();
     handle_api_route($docRoot, $uri);
 }

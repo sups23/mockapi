@@ -184,7 +184,7 @@ h1 {
 </head>
 <body>
 <div class="app">
-  <h1>Todos</h1>
+  <h1>Todos <a href="/" style="font-size:13px;font-weight:400;color:var(--blue);text-decoration:none;margin-left:8px;">&larr; Explorer</a></h1>
 
   <form class="add-form" id="addForm" onsubmit="addTodo(event)">
     <input type="text" id="addTitle" placeholder="What needs to be done?" autofocus>

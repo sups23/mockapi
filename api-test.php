@@ -217,7 +217,7 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
 </style>
 </head>
 <body>
-<header class="topbar"><h1>JSON <span>API Explorer</span></h1><div class="top-actions"><button onclick="openCreator()" title="Create a new CRUD resource with schema and seed data">+ Create Route</button><button id="themeToggle">Dark</button><a href="/">Home</a></div></header>
+<header class="topbar"><h1>JSON <span>API Explorer</span></h1><div class="top-actions"><a href="/todo/">Todos</a><button onclick="openCreator()" title="Create a new CRUD resource with schema and seed data">+ Create Route</button><button id="themeToggle">Dark</button><a href="/">Home</a></div></header>
 <main class="container">
 <p class="intro">Keyed route registry explorer. Add group files under <code>routes/</code> to define endpoints. Each file maps URL patterns to HTTP method configurations.</p>
 <div class="toolbar"><input id="resourceFilter" type="search" placeholder="Filter by group, path, or method"><button class="btn" onclick="expandAll()">Expand all</button><button class="btn" onclick="collapseAll()">Collapse all</button></div>

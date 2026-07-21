@@ -415,7 +415,7 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
     <button type="button" class="btn btn-small" onclick="addSchemaRow()" style="margin-top:6px">+ Add field</button>
 
     <label>Seed data <small>(JSON array of objects with positive integer ids)</small></label>
-    <textarea id="creatorSeed" style="min-height:80px" oninput="this.dataset.userEdited='1'" placeholder="Auto-generated from schema fields. Edit to customize.">[{"id": 1, "version": 0}]</textarea>
+    <textarea id="creatorSeed" style="min-height:160px" oninput="this.dataset.userEdited='1'" placeholder="Auto-generated from schema fields. Edit to customize.">[{"id": 1, "version": 0}]</textarea>
 
     <div class="creator-error" id="creatorError"></div>
     <div class="creator-response" id="creatorResponse"><pre></pre></div>

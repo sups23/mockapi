@@ -415,7 +415,7 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
     <button type="button" class="btn btn-small" onclick="addSchemaRow()" style="margin-top:6px">+ Add field</button>
 
     <label>Seed data <small>(JSON array of objects with positive integer ids)</small></label>
-    <textarea id="creatorSeed" style="min-height:80px">[]</textarea>
+    <textarea id="creatorSeed" style="min-height:80px" oninput="this.dataset.userEdited='1'" placeholder="Auto-generated from schema fields. Edit to customize.">[]</textarea>
 
     <div class="creator-error" id="creatorError"></div>
     <div class="creator-response" id="creatorResponse"><pre></pre></div>
@@ -688,7 +688,10 @@ document.getElementById('creatorOverlay').addEventListener('click', function(e) 
 
 function initSchemaRows() {
     var container = document.getElementById('creatorSchemaRows');
-    if (container.children.length > 0) return;
+    var seedEl = document.getElementById('creatorSeed');
+    seedEl.dataset.userEdited = '';
+    seedEl.value = '[]';
+    if (container.children.length > 0) { rebuildSeedPreview(); return; }
     addSchemaRow();
 }
 
@@ -696,11 +699,44 @@ function addSchemaRow() {
     var container = document.getElementById('creatorSchemaRows');
     var row = document.createElement('div');
     row.className = 'schema-row';
-    row.innerHTML = '<input type="text" placeholder="field name" style="flex:1;min-width:80px">' +
-        '<select><option>string</option><option>number</option><option>boolean</option><option>array</option><option>datetime</option></select>' +
-        '<input type="text" class="schema-default" placeholder="default value">' +
-        '<button type="button" class="btn btn-small" onclick="this.parentElement.remove()">X</button>';
+    row.innerHTML = '<input type="text" placeholder="field name" style="flex:1;min-width:80px" oninput="rebuildSeedPreview()">' +
+        '<select onchange="rebuildSeedPreview()"><option>string</option><option>number</option><option>boolean</option><option>array</option><option>datetime</option></select>' +
+        '<input type="text" class="schema-default" placeholder="default" oninput="rebuildSeedPreview()">' +
+        '<button type="button" class="btn btn-small" onclick="this.parentElement.remove();rebuildSeedPreview()">X</button>';
     container.appendChild(row);
+    rebuildSeedPreview();
+}
+
+function rebuildSeedPreview() {
+    var seedEl = document.getElementById('creatorSeed');
+    if (!seedEl.dataset.userEdited) {
+        var obj = {};
+        document.querySelectorAll('#creatorSchemaRows .schema-row').forEach(function(row) {
+            var inputs = row.querySelectorAll('input');
+            var sel = row.querySelector('select');
+            var name = inputs[0].value.trim();
+            var type = sel.value;
+            var def = inputs[1].value.trim();
+            if (!name) return;
+            if (def !== '') {
+                if (type === 'number') { var n = Number(def); obj[name] = isNaN(n) ? 0 : n; }
+                else if (type === 'boolean') { obj[name] = def === 'true' || def === '1'; }
+                else if (type === 'array') { try { var p = JSON.parse(def); obj[name] = Array.isArray(p) ? p : []; } catch(e) { obj[name] = []; } }
+                else { obj[name] = def; }
+            } else {
+                if (type === 'string') obj[name] = '';
+                else if (type === 'number') obj[name] = 0;
+                else if (type === 'boolean') obj[name] = false;
+                else if (type === 'array') obj[name] = [];
+                else obj[name] = null;
+            }
+        });
+        if (Object.keys(obj).length > 0) {
+            seedEl.value = JSON.stringify([obj], null, 2);
+        } else {
+            seedEl.value = '[]';
+        }
+    }
 }
 
 function creatorChange() {

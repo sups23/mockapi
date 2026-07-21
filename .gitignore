@@ -1,2 +1,7 @@
 api/*/id/
 api/*/.write.lock
+/public/*
+!/public/index.php
+/api/*
+!/api/posts/
+!/api/posts/**

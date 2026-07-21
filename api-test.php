@@ -186,11 +186,38 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
 
 .error-card { background:#fff3f3; border:1px solid var(--red); border-radius:8px; padding:18px; margin:22px 0; color:var(--red); }
 
+.modal-overlay { display:none; position:fixed; inset:0; background:#00000060; z-index:100; justify-content:center; align-items:flex-start; padding-top:40px; overflow-y:auto; }
+.modal-overlay.visible { display:flex; }
+.modal { background:var(--surface); border-radius:10px; width:95vw; max-width:700px; box-shadow:0 12px 48px #00000040; max-height:90vh; display:flex; flex-direction:column; }
+.modal-header { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--line); }
+.modal-header h2 { margin:0; font-size:18px; } .modal-header button { border:none; background:none; color:var(--muted); font-size:20px; cursor:pointer; padding:4px 8px; border-radius:4px; }
+.modal-body { padding:18px 22px; overflow-y:auto; flex:1; }
+.modal-body label { display:block; font-weight:600; margin:12px 0 4px; font-size:13px; }
+.modal-body label small { font-weight:400; color:var(--muted); }
+.modal-body input[type="text"], .modal-body input[type="number"], .modal-body select { border:1px solid var(--line); border-radius:5px; padding:7px 10px; background:var(--input-bg); color:var(--text); font:13px inherit; width:100%; }
+.modal-body input[type="checkbox"] { width:auto; margin-right:6px; }
+.check-group { display:flex; gap:16px; flex-wrap:wrap; }
+.check-group label { display:flex; align-items:center; font-weight:400; margin:0; cursor:pointer; }
+.check-group label input { accent-color:var(--blue); }
+.schema-row { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
+.schema-row input[type="text"] { flex:1; min-width:80px; }
+.schema-row select { width:100px; flex:none; }
+.schema-row .schema-default { flex:1.2; min-width:60px; }
+.modal-footer { display:flex; gap:10px; justify-content:flex-end; padding:14px 22px; border-top:1px solid var(--line); }
+.modal-footer button { padding:8px 18px; border-radius:5px; cursor:pointer; font-weight:600; font-size:13px; border:1px solid var(--line); background:var(--surface); color:var(--text); }
+.modal-footer .btn-create { background:var(--blue); color:#fff; border-color:var(--blue); }
+.modal-footer .btn-create:disabled { opacity:.5; cursor:default; }
+.creator-error { background:#fff3f3; color:var(--red); padding:8px 12px; border-radius:5px; margin-top:10px; font-size:13px; display:none; }
+.creator-error.visible { display:block; }
+.creator-response { margin-top:12px; display:none; }
+.creator-response.visible { display:block; }
+.creator-response pre { margin:0; font:12px ui-monospace,monospace; white-space:pre-wrap; word-break:break-all; max-height:200px; overflow:auto; background:var(--resp-bg); color:var(--resp-text); padding:10px; border-radius:5px; }
+
 @media (max-width:700px) { .topbar { padding:12px 14px; } .container { padding:16px 8px; } .endpoint-header { flex-wrap:wrap; gap:6px; } .endpoint-summary { width:100%; text-align:left; } .form-row { flex-direction:column; align-items:stretch; } .response-bar { flex-direction:column; align-items:flex-start; } }
 </style>
 </head>
 <body>
-<header class="topbar"><h1>JSON <span>API Explorer</span></h1><div class="top-actions"><button id="themeToggle">Dark</button><a href="/">Home</a></div></header>
+<header class="topbar"><h1>JSON <span>API Explorer</span></h1><div class="top-actions"><button onclick="openCreator()" title="Create a new CRUD resource with schema and seed data">+ Create Route</button><button id="themeToggle">Dark</button><a href="/">Home</a></div></header>
 <main class="container">
 <p class="intro">Keyed route registry explorer. Add group files under <code>routes/</code> to define endpoints. Each file maps URL patterns to HTTP method configurations.</p>
 <div class="toolbar"><input id="resourceFilter" type="search" placeholder="Filter by group, path, or method"><button class="btn" onclick="expandAll()">Expand all</button><button class="btn" onclick="collapseAll()">Collapse all</button></div>
@@ -359,6 +386,47 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
 </section>
 <?php endforeach; endif; ?>
 </main>
+
+<div class="modal-overlay" id="creatorOverlay">
+<div class="modal">
+  <div class="modal-header">
+    <h2>Create Route Resource</h2>
+    <button onclick="closeCreator()">&times;</button>
+  </div>
+  <div class="modal-body">
+    <label>Model name <small>(lowercase letters, digits, hyphens)</small></label>
+    <input type="text" id="creatorModel" placeholder="e.g. products" oninput="creatorChange()">
+
+    <label>Operations</label>
+    <div class="check-group">
+      <label><input type="checkbox" id="creatorList" checked onchange="creatorChange()"> List (GET)</label>
+      <label><input type="checkbox" id="creatorCreate" checked onchange="creatorChange()"> Create (POST)</label>
+      <label><input type="checkbox" id="creatorRead" checked onchange="creatorChange()"> Read (GET /{id})</label>
+      <label><input type="checkbox" id="creatorPatch" checked onchange="creatorChange()"> Patch (PATCH /{id})</label>
+      <label><input type="checkbox" id="creatorDelete" checked onchange="creatorChange()"> Delete (DELETE /{id})</label>
+      <label><input type="checkbox" id="creatorReset" checked onchange="creatorChange()"> Reset (POST /reset)</label>
+    </div>
+
+    <label>Page limit</label>
+    <input type="number" id="creatorLimit" value="10" min="1" max="100">
+
+    <label>Schema fields</label>
+    <div id="creatorSchemaRows"></div>
+    <button type="button" class="btn btn-small" onclick="addSchemaRow()" style="margin-top:6px">+ Add field</button>
+
+    <label>Seed data <small>(JSON array of objects with positive integer ids)</small></label>
+    <textarea id="creatorSeed" style="min-height:80px">[]</textarea>
+
+    <div class="creator-error" id="creatorError"></div>
+    <div class="creator-response" id="creatorResponse"><pre></pre></div>
+  </div>
+  <div class="modal-footer">
+    <button onclick="closeCreator()">Cancel</button>
+    <button class="btn-create" id="creatorSubmit" onclick="submitCreator()">Create Resource</button>
+  </div>
+</div>
+</div>
+
 <script>
 document.querySelectorAll('.group-head').forEach(function(h) { h.addEventListener('click', function(e) { if (e.target.closest('button')) return; h.parentElement.classList.toggle('open'); }); });
 function toggleEndpoint(header) { header.parentElement.classList.toggle('open'); }
@@ -612,6 +680,140 @@ function searchPrev(uid) {
     if (!st || st.matches.length === 0) return;
     st.idx = st.idx <= 0 ? st.matches.length - 1 : st.idx - 1;
     updateSearchNav(uid);
+}
+
+function openCreator() { document.getElementById('creatorOverlay').classList.add('visible'); initSchemaRows(); }
+function closeCreator() { document.getElementById('creatorOverlay').classList.remove('visible'); }
+document.getElementById('creatorOverlay').addEventListener('click', function(e) { if (e.target === this) closeCreator(); });
+
+function initSchemaRows() {
+    var container = document.getElementById('creatorSchemaRows');
+    if (container.children.length > 0) return;
+    addSchemaRow();
+}
+
+function addSchemaRow() {
+    var container = document.getElementById('creatorSchemaRows');
+    var row = document.createElement('div');
+    row.className = 'schema-row';
+    row.innerHTML = '<input type="text" placeholder="field name" style="flex:1;min-width:80px">' +
+        '<select><option>string</option><option>number</option><option>boolean</option><option>array</option><option>datetime</option></select>' +
+        '<input type="text" class="schema-default" placeholder="default value">' +
+        '<button type="button" class="btn btn-small" onclick="this.parentElement.remove()">X</button>';
+    container.appendChild(row);
+}
+
+function creatorChange() {
+    var model = document.getElementById('creatorModel').value.trim();
+    var anyChecked = document.getElementById('creatorList').checked || document.getElementById('creatorCreate').checked ||
+        document.getElementById('creatorRead').checked || document.getElementById('creatorPatch').checked ||
+        document.getElementById('creatorDelete').checked || document.getElementById('creatorReset').checked;
+    var valid = model.length > 0 && anyChecked;
+    document.getElementById('creatorSubmit').disabled = !valid;
+}
+
+async function submitCreator() {
+    var model = document.getElementById('creatorModel').value.trim();
+    var errEl = document.getElementById('creatorError');
+    var respEl = document.getElementById('creatorResponse');
+
+    errEl.classList.remove('visible');
+    errEl.textContent = '';
+    respEl.classList.remove('visible');
+
+    if (!/^[a-z][a-z0-9-]*$/.test(model)) {
+        errEl.textContent = 'Invalid model name. Use lowercase letters, digits, hyphens. Must start with a letter.';
+        errEl.classList.add('visible');
+        return;
+    }
+
+    var routes = {
+        list: document.getElementById('creatorList').checked,
+        create: document.getElementById('creatorCreate').checked,
+        read: document.getElementById('creatorRead').checked,
+        patch: document.getElementById('creatorPatch').checked,
+        delete: document.getElementById('creatorDelete').checked,
+        reset: document.getElementById('creatorReset').checked
+    };
+    var anySelected = Object.values(routes).some(function(v) { return v; });
+    if (!anySelected) {
+        errEl.textContent = 'Select at least one operation.';
+        errEl.classList.add('visible');
+        return;
+    }
+
+    var schema = {};
+    var schemaValid = true;
+    document.querySelectorAll('#creatorSchemaRows .schema-row').forEach(function(row) {
+        var inputs = row.querySelectorAll('input');
+        var sel = row.querySelector('select');
+        var name = inputs[0].value.trim();
+        var type = sel.value;
+        var def = inputs[1].value.trim();
+        if (!name || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+            errEl.textContent = 'Schema field "' + (name || '(empty)') + '" is invalid. Use letters, digits, underscores.';
+            errEl.classList.add('visible');
+            schemaValid = false;
+            return;
+        }
+        var castDefault = null;
+        if (def !== '') {
+            if (type === 'number') { var n = Number(def); castDefault = isNaN(n) ? 0 : n; }
+            else if (type === 'boolean') { castDefault = def === 'true' || def === '1'; }
+            else if (type === 'array') { try { castDefault = JSON.parse(def); if (!Array.isArray(castDefault)) { castDefault = []; } } catch(e) { castDefault = []; } }
+            else { castDefault = def; }
+        } else {
+            if (type === 'string') castDefault = '';
+            else if (type === 'number') castDefault = 0;
+            else if (type === 'boolean') castDefault = false;
+            else if (type === 'array') castDefault = [];
+            else castDefault = null;
+        }
+        schema[name] = { type: type, editable: true, default: castDefault };
+    });
+    if (!schemaValid) return;
+
+    var seed;
+    try { seed = JSON.parse(document.getElementById('creatorSeed').value); } catch(e) {
+        errEl.textContent = 'Seed data is not valid JSON.';
+        errEl.classList.add('visible');
+        return;
+    }
+    if (!Array.isArray(seed)) {
+        errEl.textContent = 'Seed data must be a JSON array.';
+        errEl.classList.add('visible');
+        return;
+    }
+
+    var limit = Math.max(1, Math.min(100, parseInt(document.getElementById('creatorLimit').value) || 10));
+    var payload = { model: model, routes: routes, schema: schema, limit: limit, seed: seed };
+
+    document.getElementById('creatorSubmit').disabled = true;
+    try {
+        var resp = await fetch('/routes-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        var text = await resp.text();
+        var data;
+        try { data = JSON.parse(text); } catch(e) { data = { error: text }; }
+
+        if (resp.ok && data.created) {
+            respEl.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+            respEl.classList.add('visible');
+            document.getElementById('creatorSubmit').disabled = true;
+            setTimeout(function() { closeCreator(); location.reload(); }, 1200);
+        } else {
+            errEl.textContent = data.error || 'Unknown error (HTTP ' + resp.status + ')';
+            errEl.classList.add('visible');
+            document.getElementById('creatorSubmit').disabled = false;
+        }
+    } catch (e) {
+        errEl.textContent = 'Network error: ' + e.message;
+        errEl.classList.add('visible');
+        document.getElementById('creatorSubmit').disabled = false;
+    }
 }
 
 var themeBtn = document.getElementById('themeToggle'), saved = localStorage.getItem('theme') || 'light';

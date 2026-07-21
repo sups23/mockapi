@@ -228,10 +228,45 @@ api/
 
 Only `routes/` files define endpoints. All JSON data files must be under `api/`.
 
+## Route creator
+
+`POST /routes-config` creates a complete CRUD resource in one request. Available from `localhost` only.
+
+```json
+{
+  "model": "products",
+  "routes": {
+    "list": true, "create": true,
+    "read": true, "patch": true,
+    "delete": true, "reset": true
+  },
+  "schema": {
+    "name": { "type": "string", "editable": true, "default": "" },
+    "price": { "type": "number", "editable": true, "default": 0 }
+  },
+  "limit": 10,
+  "seed": []
+}
+```
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `model` | yes | Lowercase letters, digits, hyphens. Must start with a letter. |
+| `routes` | yes | Object with boolean keys: `list`, `create`, `read`, `patch`, `delete`, `reset`. At least one must be `true`. |
+| `schema` | yes | User-editable fields only. Server fields (`id`, `createdAt`, `modifiedAt`, `version`) added automatically. |
+| `limit` | no | Items per page (default 10, max 100). |
+| `seed` | no | JSON array of seed records with unique positive integer `id` values. |
+
+Generates `routes/{model}.json`, `api/{model}/schema.json`, `api/{model}/list.json`, `api/{model}/seed.json`, and the `api/{model}/id/` directory.
+
+Returns `201` on success, `400` for invalid input, `409` if the resource already exists. Only `POST` is accepted; `OPTIONS` supported for CORS preflight.
+
+The explorer includes a **Create Route** wizard (topbar button) that builds this request payload from a form.
+
 ## Explorer
 
-Loads route groups, renders collapsible endpoint cards with path params, schema-based create defaults, filter builders, version-aware delete forms, reset confirmations, query/header editors, and response search with highlight/navigation. Light/dark theme persisted.
+Loads route groups, renders collapsible endpoint cards with path params, schema-based create defaults, filter builders, version-aware delete forms, reset confirmations, query/header editors, and response search with highlight/navigation. Light/dark theme persisted. Includes a **Create Route** wizard for generating new CRUD resources.
 
 ## Safety
 
-Local development only. All routes are unauthenticated and cross-origin. Do not expose on a shared network.
+Local development only. All API routes are unauthenticated and cross-origin. The `/routes-config` endpoint is restricted to `localhost`. Do not expose on a shared network.

@@ -35,6 +35,7 @@ Useful URLs:
 - `server/api/route.php` loads keyed route files from `routes/` and dispatches operations.
 - `server/api/schema.php` parses structured schema definitions with types, defaults, and flags.
 - `server/api/repository.php` provides file locking, atomic writes, seed initialization, and reset.
+- `server/api/resource-config.php` validates and atomically generates new CRUD resource packages (route file, schema, list config, seed data, and directory structure).
 - `server/api/list.php` implements filtering, sorting, projection, pagination, and schema-aware filter validation.
 - `server/helpers.php` contains nested-field, query, and JSON header helpers.
 - `api-test.php` renders the explorer shown at `/` and `/api-test`.
@@ -51,6 +52,12 @@ PATCH   /api/{resource}/{id}
 DELETE  /api/{resource}/{id}
 POST    /api/{resource}/reset
 GET     /api/health
+```
+
+Additionally:
+
+```text
+POST    /routes-config     Create a new CRUD resource (localhost only)
 ```
 
 Routes are defined in `routes/{resource}.json` files. The route file is selected by
@@ -86,6 +93,7 @@ Reserved server-managed fields are `id`, `createdAt`, `modifiedAt`, and `version
 The homepage is the primary API explorer. It includes:
 
 - Route files rendered as groups with expand/collapse cards.
+- **Create Route** wizard button for generating new CRUD resources with schema fields.
 - Schema-driven create forms with default values pre-filled.
 - Patch forms with editable field hints.
 - Delete forms with version input and usage instructions.
@@ -113,6 +121,7 @@ php -l api-test.php
 php -l server/helpers.php
 php -l server/api/schema.php
 php -l server/api/repository.php
+php -l server/api/resource-config.php
 php -l server/api/list.php
 php -l server/api/route.php
 curl -s http://localhost:8000/api/posts

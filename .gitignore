@@ -1,7 +1,7 @@
-api/*/id/
-api/*/.write.lock
 /public/*
 !/public/index.php
 /api/*
 !/api/posts/
-!/api/posts/**
+!/api/posts/schema.json
+!/api/posts/list.json
+!/api/posts/seed.json

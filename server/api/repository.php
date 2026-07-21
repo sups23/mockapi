@@ -118,6 +118,15 @@ function init_resource($docRoot, $resource) {
         return [true, null];
     }
 
+    list($seeds, $seedErr) = read_json($seedPath);
+    if ($seedErr !== null || !is_array($seeds)) {
+        return [true, null];
+    }
+
+    if (empty($seeds)) {
+        return [true, null];
+    }
+
     list($handle, $lockErr) = acquire_lock($resDir);
     if ($lockErr !== null) return [false, $lockErr];
 
@@ -132,16 +141,6 @@ function init_resource($docRoot, $resource) {
         if ($schemaErr !== null) {
             release_lock($handle);
             return [false, $schemaErr];
-        }
-
-        list($seeds, $seedErr) = read_json($seedPath);
-        if ($seedErr !== null) {
-            release_lock($handle);
-            return [false, "Seed data: $seedErr"];
-        }
-        if (!is_array($seeds)) {
-            release_lock($handle);
-            return [false, 'Seed data must be a JSON array'];
         }
 
         $ids = [];

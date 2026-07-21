@@ -1,8 +1,9 @@
 [
     {
         "id": 1,
-        "title": "",
-        "description": "",
+        "title": "default todo",
+        "description": "seed todo",
+        "version": 0,
         "isCompleted": false
     }
 ]

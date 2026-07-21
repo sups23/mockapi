@@ -1,0 +1,10 @@
+{
+  "id": { "type": "number", "automatic": true },
+  "title": { "type": "string", "editable": true, "default": "" },
+  "content": { "type": "string", "editable": true, "default": "" },
+  "tags": { "type": "array", "editable": true, "default": [] },
+  "isPublished": { "type": "boolean", "editable": true, "default": false },
+  "createdAt": { "type": "datetime", "automatic": true },
+  "modifiedAt": { "type": "datetime", "automatic": true },
+  "version": { "type": "number", "automatic": true }
+}

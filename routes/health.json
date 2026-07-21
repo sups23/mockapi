@@ -1,0 +1,9 @@
+{
+  "/api/health": {
+    "GET": {
+      "operation": "mock",
+      "status": 200,
+      "path": "api/mocks/health.json"
+    }
+  }
+}

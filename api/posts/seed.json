@@ -1,0 +1,82 @@
+[
+  {
+    "id": 3,
+    "title": "Declarative route registry",
+    "content": "Add or change API endpoints by editing JSON files in the routes/ directory. No PHP code changes needed. The explorer reads the registry and renders interactive try-it forms automatically.",
+    "tags": ["architecture", "configuration"],
+    "isPublished": true,
+    "createdAt": "2026-05-20T10:30:00.000Z",
+    "modifiedAt": "2026-05-20T10:30:00.000Z",
+    "version": 1
+  },
+  {
+    "id": 4,
+    "title": "Schema-backed field validation",
+    "content": "Every resource can have a schema.json that declares field types, defaults, and editability. Create and patch operations validate request bodies against the schema. Server-managed fields like id, timestamps, and version are rejected with a clear error.",
+    "tags": ["validation", "schema"],
+    "isPublished": true,
+    "createdAt": "2026-05-21T08:15:00.000Z",
+    "modifiedAt": "2026-05-21T08:15:00.000Z",
+    "version": 1
+  },
+  {
+    "id": 5,
+    "title": "Building the API Test Explorer",
+    "content": "The api-test.php page loads route groups from the routes/ directory. It builds a Swagger-like UI with try-it-out forms, generates schema-based request bodies with default values, shows metadata in response bars, and supports response search with highlight navigation.",
+    "tags": ["tooling", "api", "frontend"],
+    "isPublished": true,
+    "createdAt": "2026-05-22T13:20:00.000Z",
+    "modifiedAt": "2026-06-05T18:40:18.000Z",
+    "version": 3
+  },
+  {
+    "id": 6,
+    "title": "Atomic file writes with locking",
+    "content": "All mutation operations use exclusive file locks and temp-file-and-rename for atomic writes. This prevents partial records and race conditions when multiple requests target the same resource simultaneously.",
+    "tags": ["reliability", "concurrency"],
+    "isPublished": true,
+    "createdAt": "2026-05-23T14:00:00.000Z",
+    "modifiedAt": "2026-05-23T14:00:00.000Z",
+    "version": 1
+  },
+  {
+    "id": 7,
+    "title": "Flexible list filtering",
+    "content": "List endpoints support field equality, __SEARCH for substring matching, __NE for exclusion, and __GTE/__LTE for numeric range queries. Multiple values can be comma-separated for OR matching on scalar and array fields. Filters on unknown schema fields are rejected.",
+    "tags": ["query", "search"],
+    "isPublished": true,
+    "createdAt": "2026-05-24T09:45:00.000Z",
+    "modifiedAt": "2026-05-24T09:45:00.000Z",
+    "version": 1
+  },
+  {
+    "id": 10,
+    "title": "Seed data and deterministic reset",
+    "content": "Each resource can have a seed.json file with initial data. When the id/ directory is empty, the server automatically hydrates records from the seed. The POST /api/{resource}/reset endpoint wipes runtime data and re-seeds from scratch, ideal for test isolation and CI reproducibility.",
+    "tags": ["testing", "ci"],
+    "isPublished": true,
+    "createdAt": "2026-05-25T11:00:00.000Z",
+    "modifiedAt": "2026-05-25T11:00:00.000Z",
+    "version": 1
+  },
+  {
+    "id": 11,
+    "title": "Version-gated deletes",
+    "content": "The DELETE operation requires the current record version in the request body. If the version doesn't match, the server returns 409 Conflict, preventing accidental deletion of records that have been modified since the last read.",
+    "tags": ["safety", "versioning"],
+    "isPublished": true,
+    "createdAt": "2026-05-26T16:30:00.000Z",
+    "modifiedAt": "2026-05-26T16:30:00.000Z",
+    "version": 1
+  },
+  {
+    "id": 16,
+    "title": "Indexed route matching",
+    "content": "Routes are keyed by URL pattern and loaded per-resource using the first path segment after /api/. Exact static paths like /api/posts/reset are matched before dynamic {id} patterns, eliminating ambiguity and O(N) route scanning. This means hundreds of endpoints scale linearly by resource count, not total routes.",
+    "tags": ["performance", "routing"],
+    "isPublished": true,
+    "createdAt": "2026-07-21T12:36:50.000Z",
+    "modifiedAt": "2026-07-21T12:36:50.000Z",
+    "version": 1
+  }
+]

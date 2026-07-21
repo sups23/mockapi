@@ -13,7 +13,7 @@ function is_valid_model_name($name) {
 }
 
 function is_reserved_model($name) {
-    $reserved = ['admin', 'routes-config', 'api-test', 'health', 'mocks'];
+    $reserved = ['admin', 'routes-config', 'api-test', 'mocks'];
     return in_array($name, $reserved, true);
 }
 

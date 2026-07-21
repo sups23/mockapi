@@ -1,7 +1,0 @@
-{
-  "/api/health": {
-    "GET": {
-      "file": "api/mocks/health.json"
-    }
-  }
-}

@@ -47,28 +47,6 @@ Disable specific operations in `list.json`:
 
 Supported disable values: `list`, `create`, `read`, `patch`, `delete`, `reset`.
 
-## Custom mock routes
-
-Static JSON endpoints defined in `routes/*.json`. Only needed for non-CRUD mocks.
-
-```json
-{
-  "/api/health": {
-    "GET": {
-      "file": "api/mocks/health.json"
-    }
-  }
-}
-```
-
-| Field | Required | Description |
-| --- | --- | --- |
-| `file` or `path` | yes | Static JSON file path starting with `api/` |
-| `status` | no | HTTP status 100–599 (default 200) |
-| `headers` | no | Response header overrides |
-
-Exact static paths matched before dynamic `{param}` patterns.
-
 ## list.json
 
 ```json
@@ -196,8 +174,6 @@ Returns `400` if no `seed.json` exists. Use for test isolation and CI.
 ## Storage
 
 ```text
-routes/
-  health.json        # Custom mock routes only
 api/
   posts/
     schema.json
@@ -211,11 +187,9 @@ api/
     list.json
     seed.json
     id/
-  mocks/
-    health.json
 ```
 
-Only `routes/*.json` files define custom mock endpoints. All JSON data files must be under `api/`.
+All JSON data files must be under `api/`.
 
 ## Explorer
 

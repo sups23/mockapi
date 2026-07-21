@@ -25,7 +25,6 @@ Useful URLs:
 /                 Swagger-style API explorer
 /api-test         Explorer alias
 /api/posts        Posts collection (convention-based CRUD)
-/api/health       Health check mock (routes/*.json)
 ```
 
 ## Architecture
@@ -75,24 +74,6 @@ Disable operations in `list.json`:
 ```
 
 Supported: `list`, `create`, `read`, `patch`, `delete`, `reset`. Disabled operations return `404`.
-
-## Mock Routes (routes/*.json)
-
-Static JSON endpoints with no persistence. Only for non-CRUD mocks:
-
-```json
-{
-  "/api/health": {
-    "GET": { "file": "api/mocks/health.json" }
-  }
-}
-```
-
-- `file` or `path` (required): JSON file under `api/`
-- `status` (optional, default 200): custom response code
-- `headers` (optional): extra response headers
-
-Exact static paths matched before dynamic `{param}` patterns.
 
 ## File Storage
 
@@ -154,7 +135,6 @@ php -l server/api/resource-config.php
 php -l server/api/list.php
 php -l server/api/route.php
 curl -s http://localhost:8000/api/posts
-curl -s http://localhost:8000/api/health
 curl -s http://localhost:8000/
 ```
 

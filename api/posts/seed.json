@@ -21,8 +21,8 @@
   },
   {
     "id": 5,
-    "title": "Building the API Test Explorer",
-    "content": "The api-test.php page loads route groups from the routes/ directory. It builds a Swagger-like UI with try-it-out forms, generates schema-based request bodies with default values, shows metadata in response bars, and supports response search with highlight navigation.",
+    "title": "Building Seedbox",
+    "content": "The seedbox.php page loads route groups from the routes/ directory. It provides try-it-out forms, generates schema-based request bodies with default values, shows metadata in response bars, and supports response search with highlight navigation.",
     "tags": ["tooling", "api", "frontend"],
     "isPublished": true,
     "createdAt": "2026-05-22T13:20:00.000Z",

@@ -1,6 +1,8 @@
 /public/*
 !/public/index.php
-/api/*
-!/api/posts/
-api/posts/id/
-api/posts/.write.lock
+!/public/todos/
+!/public/todos/**
+/api/*/id/
+/api/*/.write.lock
+/routes/.write.lock
+.DS_Store

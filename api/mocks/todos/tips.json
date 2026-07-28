@@ -1,0 +1,8 @@
+{
+    "tips": [
+        "Use the tabs to filter active and completed items.",
+        "Toggle a todo to exercise a PATCH request.",
+        "Delete requests include the record version for optimistic concurrency."
+    ],
+    "source": "Seedbox sample mock route"
+}

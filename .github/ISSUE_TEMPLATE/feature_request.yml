@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an improvement to Seedbox.
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the development workflow or user problem.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Explain the behavior or API/configuration you would like.
+    validations:
+      required: true

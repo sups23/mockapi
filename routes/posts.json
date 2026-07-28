@@ -1,0 +1,18 @@
+{
+    "/api/posts/total": {
+        "GET": {
+            "file": "api/mocks/posts/total.json",
+            "status": 200
+        }
+    },
+    "/api/posts/create": {
+        "POST": {
+            "file": "api/mocks/posts/create.json",
+            "status": 200
+        },
+        "PATCH": {
+            "file": "api/mocks/posts/create-patch.json",
+            "status": 200
+        }
+    }
+}

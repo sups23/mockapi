@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`jsonapi/` is a standalone PHP file-backed REST server. It has no database,
+`seedbox/` is a standalone PHP file-backed REST server. It has no database,
 package manager, gateway, authentication layer, or runtime mode selection.
 
 ## Start The Server
@@ -22,8 +22,8 @@ Herd document root:
 Useful URLs:
 
 ```text
-/                 Swagger-style API explorer
-/api-test         Explorer alias
+/                 Seedbox API workspace
+/seedbox          Seedbox workspace alias
 /api/posts        Posts collection (convention-based CRUD)
 ```
 
@@ -37,7 +37,7 @@ Useful URLs:
 - `server/api/resource-config.php` validates and atomically generates new CRUD resource packages.
 - `server/api/list.php` implements filtering, sorting, projection, pagination, and schema-aware filter validation.
 - `server/helpers.php` contains nested-field, query, and JSON header helpers.
-- `api-test.php` renders the explorer shown at `/` and `/api-test`.
+- `seedbox.php` renders the workspace shown at `/` and `/seedbox`.
 
 ## CRUD Resources (convention-based)
 
@@ -97,9 +97,9 @@ IDs are sequential integers tracked by `list.json:last_id` and checked against e
 - All mutations acquire exclusive file locks and write atomically via temp-file-and-rename.
 - Write failures are checked and reported rather than silently succeeding.
 
-## Explorer
+## Seedbox Workspace
 
-The homepage is the primary API explorer. It includes:
+The homepage is the primary Seedbox workspace. It includes:
 
 - Route files rendered as groups with expand/collapse cards.
 - **Create Route** wizard button for generating new CRUD resources with schema fields.
@@ -127,7 +127,7 @@ There is no automated test suite. Run PHP lint and smoke-test the public routes:
 ```sh
 php -l public/index.php
 php -l router.php
-php -l api-test.php
+php -l seedbox.php
 php -l server/helpers.php
 php -l server/api/schema.php
 php -l server/api/repository.php

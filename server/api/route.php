@@ -899,6 +899,7 @@ function get_route_groups($docRoot) {
                     'id' => $resource,
                     'label' => ucwords(str_replace(['-', '_'], ' ', $resource)),
                     'file' => 'api/' . $resource . '/list.json',
+                    'crud' => true,
                     'routes' => $routes,
                 ];
             }
@@ -911,8 +912,6 @@ function get_route_groups($docRoot) {
         foreach ($files as $file) {
             $filename = basename($file);
             $groupId = pathinfo($filename, PATHINFO_FILENAME);
-
-            if (is_crud_resource($docRoot, $groupId)) continue;
 
             $content = file_get_contents($file);
             $decoded = json_decode($content, true);
@@ -934,11 +933,25 @@ function get_route_groups($docRoot) {
                 }
             }
 
+            if (empty($routes)) continue;
+
+            if (is_crud_resource($docRoot, $groupId)) {
+                foreach ($groups as &$group) {
+                    if ($group['id'] === $groupId) {
+                        $group['routes'] = array_merge($group['routes'], $routes);
+                        break;
+                    }
+                }
+                unset($group);
+                continue;
+            }
+
             if (!empty($routes)) {
                 $groups[] = [
                     'id' => $groupId,
                     'label' => ucwords(str_replace(['-', '_'], ' ', $groupId)),
                     'file' => 'routes/' . $filename,
+                    'crud' => false,
                     'routes' => $routes,
                 ];
             }

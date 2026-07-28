@@ -101,7 +101,7 @@ $docRoot = __DIR__;
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JSON API Explorer</title>
+<title>Seedbox</title>
 <style>
 :root { --bg:#f5f7fa; --surface:#fff; --panel:#fbfcfd; --text:#263238; --muted:#687782; --line:#d9e5ea; --blue:#1677ff; --green:#159957; --orange:#c77700; --red:#d64545; --purple:#8957d5; --input-bg:#fff; --hover:#f8fafc; --header-bg:#17212b; --header-text:#fff; --accent:#75b7ff; --resp-bg:#17212b; --resp-text:#d8f8df; }
 :root[data-theme="dark"] { --bg:#111827; --surface:#1f2937; --panel:#182230; --text:#f3f4f6; --muted:#9ca3af; --line:#374151; --input-bg:#111827; --hover:#273548; --header-bg:#0b1220; --header-text:#f3f4f6; --accent:#8bc4ff; --resp-bg:#0b1220; --resp-text:#d8f8df; }
@@ -217,9 +217,9 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
 </style>
 </head>
 <body>
-<header class="topbar"><h1>JSON <span>API Explorer</span></h1><div class="top-actions"><button onclick="openCreator()" title="Create a new CRUD resource with schema and seed data">+ Create Route</button><button id="themeToggle">Dark</button><a href="/">Home</a></div></header>
+<header class="topbar"><h1>Seed<span>box</span></h1><div class="top-actions"><button onclick="openCreator()" title="Create a new CRUD resource with schema and seed data">+ Create Route</button><button id="themeToggle">Dark</button><a href="/">Home</a></div></header>
 <main class="container">
-<p class="intro">Keyed route registry explorer. Add group files under <code>routes/</code> to define endpoints. Each file maps URL patterns to HTTP method configurations.</p>
+<p class="intro">Seedbox is a file-backed API workspace. Add group files under <code>routes/</code> to define endpoints. Each file maps URL patterns to HTTP method configurations.</p>
 <div class="toolbar"><input id="resourceFilter" type="search" placeholder="Filter by group, path, or method"><button class="btn" onclick="expandAll()">Expand all</button><button class="btn" onclick="collapseAll()">Collapse all</button></div>
 <?php if ($configError): ?>
 <div class="error-card"><strong>Configuration error:</strong> <?= htmlspecialchars($configError) ?></div>
@@ -382,6 +382,9 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
   </div>
 </div></div>
 <?php endforeach; ?>
+<?php if (!empty($group['crud'])): ?>
+<div class="form-row" style="margin-top:12px"><button type="button" class="btn btn-reset" onclick="openMockCreator('<?= $groupId ?>')">+ Add Mock Route</button></div>
+<?php endif; ?>
 </div>
 </section>
 <?php endforeach; endif; ?>
@@ -423,6 +426,35 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
   <div class="modal-footer">
     <button onclick="closeCreator()">Cancel</button>
     <button class="btn-create" id="creatorSubmit" onclick="submitCreator()">Create Resource</button>
+  </div>
+</div>
+</div>
+
+<div class="modal-overlay" id="mockCreatorOverlay">
+<div class="modal">
+  <div class="modal-header">
+    <h2>Add Mock Route</h2>
+    <button onclick="closeMockCreator()">&times;</button>
+  </div>
+  <div class="modal-body">
+    <label>Path <small id="mockPathHint"></small></label>
+    <input type="text" id="mockPath" placeholder="e.g. /api/posts/featured">
+
+    <label>Method</label>
+    <select id="mockMethod"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
+
+    <label>Status</label>
+    <input type="number" id="mockStatus" value="200" min="100" max="599">
+
+    <label>Response body <small>(valid JSON)</small></label>
+    <textarea id="mockResponse" style="min-height:160px">{}</textarea>
+
+    <div class="creator-error" id="mockCreatorError"></div>
+    <div class="creator-response" id="mockCreatorResponse"><pre></pre></div>
+  </div>
+  <div class="modal-footer">
+    <button onclick="closeMockCreator()">Cancel</button>
+    <button class="btn-create" id="mockCreatorSubmit" onclick="submitMockCreator()">Create Mock Route</button>
   </div>
 </div>
 </div>
@@ -742,6 +774,73 @@ function creatorChange() {
         document.getElementById('creatorDelete').checked || document.getElementById('creatorReset').checked;
     var valid = model.length > 0 && anyChecked;
     document.getElementById('creatorSubmit').disabled = !valid;
+}
+
+var mockResource = '';
+function openMockCreator(resource) {
+    mockResource = resource;
+    document.getElementById('mockPath').value = '/api/' + resource + '/';
+    document.getElementById('mockPathHint').textContent = 'Must start with /api/' + resource + '/';
+    document.getElementById('mockMethod').value = 'GET';
+    document.getElementById('mockStatus').value = '200';
+    document.getElementById('mockResponse').value = '{}';
+    document.getElementById('mockCreatorError').classList.remove('visible');
+    document.getElementById('mockCreatorResponse').classList.remove('visible');
+    document.getElementById('mockCreatorSubmit').disabled = false;
+    document.getElementById('mockCreatorOverlay').classList.add('visible');
+    document.getElementById('mockPath').focus();
+}
+function closeMockCreator() { document.getElementById('mockCreatorOverlay').classList.remove('visible'); }
+document.getElementById('mockCreatorOverlay').addEventListener('click', function(e) { if (e.target === this) closeMockCreator(); });
+
+async function submitMockCreator() {
+    var path = document.getElementById('mockPath').value.trim();
+    var method = document.getElementById('mockMethod').value;
+    var status = parseInt(document.getElementById('mockStatus').value, 10);
+    var errEl = document.getElementById('mockCreatorError');
+    var respEl = document.getElementById('mockCreatorResponse');
+    errEl.classList.remove('visible');
+    respEl.classList.remove('visible');
+    if (!path.startsWith('/api/' + mockResource + '/')) {
+        errEl.textContent = 'Path must start with /api/' + mockResource + '/.';
+        errEl.classList.add('visible');
+        return;
+    }
+    if (!Number.isInteger(status) || status < 100 || status > 599) {
+        errEl.textContent = 'Status must be between 100 and 599.';
+        errEl.classList.add('visible');
+        return;
+    }
+    var response;
+    try { response = JSON.parse(document.getElementById('mockResponse').value); } catch (e) {
+        errEl.textContent = 'Response body is not valid JSON.';
+        errEl.classList.add('visible');
+        return;
+    }
+    document.getElementById('mockCreatorSubmit').disabled = true;
+    try {
+        var resp = await fetch('/mock-route-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resource: mockResource, path: path, method: method, status: status, response: response })
+        });
+        var text = await resp.text();
+        var data;
+        try { data = JSON.parse(text); } catch (e) { data = { error: text }; }
+        if (resp.ok && data.created) {
+            respEl.querySelector('pre').textContent = JSON.stringify(data, null, 2);
+            respEl.classList.add('visible');
+            setTimeout(function() { closeMockCreator(); location.reload(); }, 800);
+        } else {
+            errEl.textContent = data.error || 'Unknown error (HTTP ' + resp.status + ')';
+            errEl.classList.add('visible');
+            document.getElementById('mockCreatorSubmit').disabled = false;
+        }
+    } catch (e) {
+        errEl.textContent = 'Network error: ' + e.message;
+        errEl.classList.add('visible');
+        document.getElementById('mockCreatorSubmit').disabled = false;
+    }
 }
 
 async function submitCreator() {

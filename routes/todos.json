@@ -1,0 +1,23 @@
+{
+    "/api/todos/stats": {
+        "GET": {
+            "file": "api/mocks/todos/stats.json",
+            "status": 200
+        }
+    },
+    "/api/todos/tips": {
+        "GET": {
+            "file": "api/mocks/todos/tips.json",
+            "status": 200
+        }
+    },
+    "/api/todos/{slug}/preview": {
+        "GET": {
+            "file": "api/mocks/todos/preview.json",
+            "status": 200,
+            "headers": {
+                "X-Sample-Route": "todos-preview"
+            }
+        }
+    }
+}

@@ -1,0 +1,33 @@
+{
+    "id": {
+        "type": "number",
+        "automatic": true
+    },
+    "title": {
+        "type": "string",
+        "editable": true,
+        "default": "default title"
+    },
+    "description": {
+        "type": "string",
+        "editable": true,
+        "default": "default description"
+    },
+    "isCompleted": {
+        "type": "boolean",
+        "editable": true,
+        "default": false
+    },
+    "createdAt": {
+        "type": "datetime",
+        "automatic": true
+    },
+    "modifiedAt": {
+        "type": "datetime",
+        "automatic": true
+    },
+    "version": {
+        "type": "number",
+        "automatic": true
+    }
+}

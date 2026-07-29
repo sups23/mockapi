@@ -20,8 +20,9 @@ php -S 0.0.0.0:8000 -t public public/index.php
 ```
 
 When adding a resource, prefer the Seedbox Create Route workflow or commit the
-resource's `schema.json`, `list.json`, `seed.json`, and route fixtures directly.
-Runtime `id/*.json` records and `.write.lock` files are intentionally ignored.
+resource's `schema.json`, `list.json`, scenario seeds, and route fixtures
+directly. Runtime `scenarios/*/records/*.json` files and `.write.lock` files
+are intentionally ignored.
 
 ## Pull Requests
 

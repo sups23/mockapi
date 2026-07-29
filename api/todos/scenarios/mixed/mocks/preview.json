@@ -1,0 +1,9 @@
+{
+  "preview": {
+    "title": "Review mixed progress",
+    "description": "This response comes from the mixed scenario.",
+    "isCompleted": false
+  },
+  "source": "Seedbox sample mock route",
+  "scenario": "mixed"
+}

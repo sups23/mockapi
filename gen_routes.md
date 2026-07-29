@@ -8,10 +8,10 @@ Create static mock routes and response fixtures that supplement an existing CRUD
 
 ```text
 routes/{resource}.json
-api/mocks/{resource}/{route-name}.json
+api/{resource}/scenarios/{scenario}/mocks/{route-name}.json
 ```
 
-Prefer the Seedbox **Add Mock Route** button or `POST /mock-route-config` for one new route. Use direct file edits for multiple related routes, parameterized routes, headers, or updates to an existing registry.
+Prefer the Seedbox **Add Mock Route** button or `POST /mock-route-config` for one new route. It creates the response fixture in every existing scenario; edit those files afterward for scenario-specific responses. Use direct file edits for multiple related routes, parameterized routes, headers, or updates to an existing registry.
 
 ## Input Handling
 
@@ -52,13 +52,13 @@ Each JSON key is a path and each nested key is an HTTP method.
 {
   "/api/posts/total": {
     "GET": {
-      "file": "api/mocks/posts/total.json",
+      "file": "api/posts/scenarios/{{activeScenario}}/mocks/total.json",
       "status": 200
     }
   },
   "/api/posts/{slug}/preview": {
     "GET": {
-      "file": "api/mocks/posts/preview.json",
+      "file": "api/posts/scenarios/{{activeScenario}}/mocks/preview.json",
       "status": 200,
       "headers": {
         "X-Mock": "true"
@@ -76,7 +76,9 @@ Each JSON key is a path and each nested key is an HTTP method.
 
 ## Response Fixtures
 
-Create valid JSON under `api/`. Generated resource-attached routes normally use `api/mocks/{resource}/`.
+Create valid JSON under `api/{resource}/scenarios/{scenario}/mocks/` for every
+scenario that should support the route. Use `{{activeScenario}}` in the route
+fixture path so the server selects the active scenario at request time.
 
 ```json
 {
@@ -88,9 +90,9 @@ Create valid JSON under `api/`. Generated resource-attached routes normally use 
 Name files from the final meaningful URL segment:
 
 ```text
-/api/posts/total            -> api/mocks/posts/total.json
-/api/posts/featured         -> api/mocks/posts/featured.json
-/api/posts/{slug}/preview   -> api/mocks/posts/preview.json
+/api/posts/total            -> api/posts/scenarios/{{activeScenario}}/mocks/total.json
+/api/posts/featured         -> api/posts/scenarios/{{activeScenario}}/mocks/featured.json
+/api/posts/{slug}/preview   -> api/posts/scenarios/{{activeScenario}}/mocks/preview.json
 ```
 
 When two responses need the same filename, add the method or a clear domain qualifier, such as `preview-post.json` or `preview-error.json`. Do not use opaque hashes in fixture names.
@@ -99,6 +101,8 @@ When two responses need the same filename, add the method or a clear domain qual
 
 - Static routes match before parameterized routes.
 - `{name}` parameters match one non-empty path segment and can be substituted into a fixture path.
+- `{{activeScenario}}` is substituted server-side from the resource's active
+  scenario before the fixture path is resolved.
 - A missing path returns `404`.
 - A known path with an unsupported method returns `405` and an `Allow` header.
 - `OPTIONS` returns `204` with allowed methods.
@@ -114,7 +118,8 @@ When two responses need the same filename, add the method or a clear domain qual
 ## Validate
 
 1. Confirm the registry file matches the first `/api/` path segment.
-2. Confirm every response fixture exists under `api/` and contains valid JSON.
+2. Confirm every scenario response fixture exists under
+   `api/{resource}/scenarios/{scenario}/mocks/` and contains valid JSON.
 3. Confirm static and parameterized paths do not conflict unexpectedly.
 4. Confirm no mock shadows a generated CRUD collection, numeric ID, or reset route.
 5. Request each endpoint and verify its status, headers, and JSON response.

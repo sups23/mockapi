@@ -9,6 +9,9 @@
         "version"
     ],
     "_limit": 4,
-  "last_id": 16,
-  "disable": ["delete", "reset"]
+    "activeScenario": "drafts",
+    "disable": [
+        "delete",
+        "reset"
+    ]
 }

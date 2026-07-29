@@ -45,6 +45,7 @@ Useful URLs:
 | `/api/{resource}` | CRUD collection endpoint |
 | `/routes-config` | Local-only CRUD resource generator |
 | `/mock-route-config` | Local-only mock route generator |
+| `/scenario-config` | Local-only active scenario selector |
 | `/todos` | Independent Todos demo application |
 
 The Todos application is not part of Seedbox's workspace UI. It is a separate
@@ -60,9 +61,10 @@ Routing is handled as follows:
 1. `/` and `/seedbox` render `seedbox.php`.
 2. `/routes-config` invokes the CRUD resource generator.
 3. `/mock-route-config` invokes the mock route generator.
-4. `/api/...` is dispatched to generated CRUD routes first, then to custom
+4. `/scenario-config` reads or updates a resource's active fixture scenario.
+5. `/api/...` is dispatched to generated CRUD routes first, then to custom
    routes registered in `routes/`.
-5. Other paths are served from `public/`. Directories containing
+6. Other paths are served from `public/`. Directories containing
    `index.html`, such as `/todos`, are supported.
 
 All API responses are JSON and include `Access-Control-Allow-Origin: *`.
@@ -80,6 +82,7 @@ Important server modules:
 - `server/api/list.php`: projection, filtering, sorting, and pagination.
 - `server/api/resource-config.php`: CRUD package generator.
 - `server/api/mock-route-config.php`: custom mock route generator.
+- `server/api/scenario-config.php`: active scenario selection endpoint.
 - `server/helpers.php`: JSON headers, query parsing, and nested field access.
 
 ## Project Storage
@@ -91,13 +94,12 @@ api/
   {resource}/
     schema.json       # field types and editability
     list.json         # projection, pagination, operation settings
-    seed.json         # canonical fixture array, optional
+    scenarios/
+      {scenario}/
+        seed.json     # canonical fixture array for this scenario
+        records/
+          {number}.json # active scenario runtime records
     .write.lock       # generated mutation lock
-    id/
-      {number}.json   # runtime records, generated as needed
-  mocks/
-    {resource}/
-      {response}.json # custom route response fixtures
 routes/
   {resource}.json     # custom routes for the resource
 public/
@@ -108,8 +110,20 @@ router.php            # server router
 ```
 
 All response fixture paths must remain under `api/`. Runtime record files are
-the current mutable state. `seed.json` is the canonical starting state and is
-not changed by ordinary create, patch, or delete requests.
+the current mutable state for one scenario. A resource's `list.json` stores
+the globally active scenario:
+
+```json
+{
+  "fields": ["id", "title", "version"],
+  "_limit": 10,
+  "activeScenario": "default",
+  "disable": []
+}
+```
+
+Each scenario has its own canonical `seed.json` and mutable `records/` folder.
+Ordinary create, patch, and delete requests affect only the active scenario.
 
 Resource names must match:
 
@@ -121,8 +135,8 @@ They may be up to 64 characters. `admin`, `routes-config`, `seedbox`, and
 `mocks` are reserved names for generated resources.
 
 The repository keeps the generic Todos sample client and its supporting sample
-fixtures visible in source control. Its mutable runtime files remain ignored:
-`api/todos/id/*.json` and `api/todos/.write.lock`.
+fixtures visible in source control. Mutable scenario records and lock files
+remain ignored: `api/*/scenarios/*/records/` and `api/*/.write.lock`.
 
 ## CRUD Resources
 
@@ -189,7 +203,7 @@ type:
 {
   "fields": ["id", "name", "price", "active", "version"],
   "_limit": 10,
-  "last_id": 3,
+  "activeScenario": "default",
   "disable": [],
   "_hidden": [],
   "defaultFilters": {}
@@ -198,8 +212,9 @@ type:
 
 - `fields` is the collection response projection. Nested paths are supported.
 - `_limit` is the default page size and is always at least `1`.
-- `last_id` tracks the last allocated numeric ID. ID allocation also scans
-  existing files to avoid collisions.
+- `activeScenario` selects the globally active scenario for this resource.
+  ID allocation is isolated to that scenario and scans its records to avoid
+  collisions.
 - `disable` accepts `list`, `create`, `read`, `patch`, `delete`, and `reset`.
   Disabled operations return `404`.
 - `_hidden` removes fields from loaded records before projection.
@@ -208,19 +223,20 @@ type:
 
 List responses use `fields`; individual reads return the full stored record.
 
-### `seed.json` and Runtime State
+### Scenarios, Seeds, and Runtime State
 
-`seed.json` contains a JSON array of records. Seed IDs must be unique positive
-integers and values must satisfy the schema. An empty `seed.json` (`[]`) starts
-the resource empty.
+Scenario names use lowercase letters, digits, and hyphens. A scenario contains
+a JSON array in `scenarios/{scenario}/seed.json`. Seed IDs must be unique
+positive integers and values must satisfy the schema. An empty scenario seed
+(`[]`) starts that scenario empty.
 
-When an enabled CRUD operation first accesses a resource and `id/` has no JSON
-records, Seedbox validates and hydrates the seed records into `id/{id}.json`.
-It also updates `list.json:last_id` to the highest seed ID. Existing runtime
-records are not overwritten automatically.
+When an enabled CRUD operation first accesses a resource and the active
+scenario's `records/` folder has no JSON records, Seedbox validates and
+hydrates that scenario's seed into `records/{id}.json`. Existing records in
+that scenario are not overwritten automatically.
 
-Reset explicitly clears `id/*.json`, validates and writes the seed records,
-and updates `last_id`:
+Reset explicitly clears the active scenario's `records/*.json`, validates and
+writes that scenario's seed records:
 
 ```sh
 curl -X POST http://localhost:8000/api/posts/reset
@@ -228,7 +244,8 @@ curl -X POST http://localhost:8000/api/posts/reset
 
 Mutation behavior:
 
-- Create returns `201`, assigns the next numeric ID, sets `version` to `1`,
+- Create returns `201`, assigns the next numeric ID within the active scenario,
+  sets `version` to `1`,
   and generates UTC `createdAt` and `modifiedAt` timestamps.
 - Create applies schema defaults to omitted editable fields.
 - Patch accepts only editable fields, increments `version`, and updates
@@ -291,20 +308,21 @@ Rules:
 ## Custom Mock Routes
 
 Custom routes are declared per resource in `routes/{resource}.json`. The first
-path segment after `/api/` selects the registry. Response fixtures normally
-live in `api/mocks/{resource}/`.
+path segment after `/api/` selects the registry. Resource-attached response
+fixtures live inside each scenario at
+`api/{resource}/scenarios/{scenario}/mocks/`.
 
 ```json
 {
   "/api/posts/total": {
     "GET": {
-      "file": "api/mocks/posts/total.json",
+      "file": "api/posts/scenarios/{{activeScenario}}/mocks/total.json",
       "status": 200
     }
   },
   "/api/posts/{slug}/preview": {
     "GET": {
-      "file": "api/mocks/posts/preview.json",
+      "file": "api/posts/scenarios/{{activeScenario}}/mocks/preview.json",
       "status": 200,
       "headers": { "X-Mock": "true" }
     }
@@ -324,6 +342,8 @@ Route configuration rules:
   headers are reserved and cannot be overridden.
 - `{name}` parameters match one non-empty path segment and are substituted in
   the fixture path.
+- `{{activeScenario}}` in a fixture path is replaced server-side with the
+  resource's globally active scenario. It cannot be supplied by the client.
 - Static paths match before parameterized paths.
 - A missing path returns `404`; a known path with an unsupported method returns
   `405` with `Allow`; `OPTIONS` returns `204` with allowed methods.
@@ -332,6 +352,27 @@ Route configuration rules:
 
 Do not register mocks for `/api/{resource}`, `/api/{resource}/reset`, or
 `/api/{resource}/{numeric-id}` because generated CRUD routes take precedence.
+
+## Scenario Switching
+
+The Seedbox homepage shows a scenario dropdown on every CRUD resource group.
+Changing it calls the localhost-only `POST /scenario-config` endpoint and
+updates that resource's `list.json:activeScenario`. The page then reloads so
+list, read, create, patch, delete, and reset forms operate against the newly
+selected data set.
+
+The endpoint accepts:
+
+```json
+{
+  "resource": "todos",
+  "scenario": "completed"
+}
+```
+
+It returns the active scenario and all available scenario names. The selection
+is global for the local server, so every browser request uses the same active
+scenario until another selection changes it.
 
 ## Todos Sample App
 
@@ -348,14 +389,16 @@ The sample uses:
 | `/api/todos/tips` | Static mock | Display client-facing sample guidance |
 | `/api/todos/{slug}/preview` | Parameterized mock | Demonstrate path matching and fixture substitution |
 
-The mock registry is `routes/todos.json`; response fixtures are under
-`api/mocks/todos/`. The client loads the three sample routes on startup and
+The mock registry is `routes/todos.json`; response fixtures are under each
+scenario's `api/todos/scenarios/{scenario}/mocks/` directory. The client loads the three sample routes on startup and
 renders their responses in the Sample API panel. The aggregate values are
 static fixture data and are intentionally not recalculated after CRUD changes.
 
 The Todo CRUD schema is defined in `api/todos/schema.json` and includes
 `title`, `description`, and `isCompleted`. Its collection projection is defined
-in `api/todos/list.json`. To restore the sample data during development:
+in `api/todos/list.json`. The sample includes `default`, `empty`, `completed`,
+`mixed`, and `long-list` scenarios for demonstrating different frontend data
+sets. To restore the sample data during development:
 
 ```sh
 curl -X POST http://localhost:8000/api/todos/reset
@@ -367,10 +410,12 @@ The Seedbox workspace exposes two local-only generators:
 
 - **Create Route** posts a schema, selected CRUD operations, limit, and seed
   array to `POST /routes-config`. It creates `schema.json`, `list.json`,
-  `seed.json`, and initial runtime records.
+  `scenarios/default/seed.json`, and initial runtime records.
 - **Add Mock Route** posts a resource, path, method, status, and response body
   to `POST /mock-route-config`. It creates a response fixture under
-  `api/mocks/{resource}/` and updates `routes/{resource}.json`.
+  every existing `api/{resource}/scenarios/{scenario}/mocks/` directory and
+  updates `routes/{resource}.json` with an active-scenario fixture path. Edit
+  each scenario fixture afterward when responses should differ.
 
 Both endpoints accept only requests from `127.0.0.1` or `::1`. They require
 `POST` with `Content-Type: application/json`; `OPTIONS` is supported for local
@@ -440,6 +485,7 @@ php -l server/api/schema.php
 php -l server/api/repository.php
 php -l server/api/resource-config.php
 php -l server/api/mock-route-config.php
+php -l server/api/scenario-config.php
 php -l server/api/list.php
 php -l server/api/route.php
 ```
@@ -458,5 +504,5 @@ Validate JSON configuration with PHP when needed:
 ```sh
 php -r 'json_decode(file_get_contents("api/posts/schema.json"), true, 512, JSON_THROW_ON_ERROR);'
 php -r 'json_decode(file_get_contents("api/posts/list.json"), true, 512, JSON_THROW_ON_ERROR);'
-php -r 'json_decode(file_get_contents("api/posts/seed.json"), true, 512, JSON_THROW_ON_ERROR);'
+php -r 'json_decode(file_get_contents("api/posts/scenarios/default/seed.json"), true, 512, JSON_THROW_ON_ERROR);'
 ```

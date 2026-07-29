@@ -1,0 +1,28 @@
+{
+    "id": {
+        "type": "number",
+        "automatic": true
+    },
+    "name": {
+        "type": "string",
+        "editable": true,
+        "default": ""
+    },
+    "price": {
+        "type": "number",
+        "editable": true,
+        "default": 0
+    },
+    "createdAt": {
+        "type": "datetime",
+        "automatic": true
+    },
+    "modifiedAt": {
+        "type": "datetime",
+        "automatic": true
+    },
+    "version": {
+        "type": "number",
+        "automatic": true
+    }
+}

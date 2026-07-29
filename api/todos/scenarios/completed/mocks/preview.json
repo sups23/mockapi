@@ -1,0 +1,9 @@
+{
+    "preview": {
+        "title": "Review completed work",
+        "description": "This response comes from the completed scenario.",
+        "isCompleted": true
+    },
+    "source": "Seedbox sample mock route",
+    "scenario": "completed"
+}

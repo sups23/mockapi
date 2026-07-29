@@ -2,7 +2,7 @@
   {
     "id": 3,
     "title": "Declarative route registry",
-    "content": "Add or change API endpoints by editing JSON files in the routes/ directory. No PHP code changes needed. The explorer reads the registry and renders interactive try-it forms automatically.",
+    "content": "Add or change API endpoints by editing JSON files in the routes/ directory. No PHP code changes needed. The Seedbox workspace reads the registry and renders interactive try-it forms automatically.",
     "tags": ["architecture", "configuration"],
     "isPublished": true,
     "createdAt": "2026-05-20T10:30:00.000Z",
@@ -52,7 +52,7 @@
   {
     "id": 10,
     "title": "Seed data and deterministic reset",
-    "content": "Each resource can have a seed.json file with initial data. When the id/ directory is empty, the server automatically hydrates records from the seed. The POST /api/{resource}/reset endpoint wipes runtime data and re-seeds from scratch, ideal for test isolation and CI reproducibility.",
+    "content": "Each resource can have scenario folders with seed.json fixture data. When a scenario has no records, Seedbox hydrates its records from the selected seed. The reset endpoint wipes the active scenario and re-seeds it, ideal for test isolation and CI reproducibility.",
     "tags": ["testing", "ci"],
     "isPublished": true,
     "createdAt": "2026-05-25T11:00:00.000Z",

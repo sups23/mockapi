@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "version": 1,
+    "title": "Review completed work",
+    "description": "This scenario is useful for testing a completed-only state.",
+    "isCompleted": true
+  },
+  {
+    "id": 2,
+    "version": 1,
+    "title": "Archive old task",
+    "description": "A second completed item exercises list rendering.",
+    "isCompleted": true
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "id": 1,
+    "title": "Draft API contract",
+    "content": "This scenario contains unpublished content for testing draft filters and empty published states.",
+    "tags": ["draft", "testing"],
+    "isPublished": false,
+    "createdAt": "2026-07-01T09:00:00.000Z",
+    "modifiedAt": "2026-07-01T09:00:00.000Z",
+    "version": 1
+  },
+  {
+    "id": 2,
+    "title": "Review pending",
+    "content": "A second unpublished record helps exercise multi-record draft views.",
+    "tags": ["draft", "review"],
+    "isPublished": false,
+    "createdAt": "2026-07-02T09:00:00.000Z",
+    "modifiedAt": "2026-07-02T09:00:00.000Z",
+    "version": 1
+  }
+]

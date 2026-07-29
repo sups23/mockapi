@@ -1,17 +1,17 @@
 {
     "/api/posts/total": {
         "GET": {
-            "file": "api/mocks/posts/total.json",
+            "file": "api/posts/scenarios/{{activeScenario}}/mocks/total.json",
             "status": 200
         }
     },
     "/api/posts/create": {
         "POST": {
-            "file": "api/mocks/posts/create.json",
+            "file": "api/posts/scenarios/{{activeScenario}}/mocks/create.json",
             "status": 200
         },
         "PATCH": {
-            "file": "api/mocks/posts/create-patch.json",
+            "file": "api/posts/scenarios/{{activeScenario}}/mocks/create-patch.json",
             "status": 200
         }
     }

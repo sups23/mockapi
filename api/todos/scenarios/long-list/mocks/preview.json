@@ -1,0 +1,9 @@
+{
+  "preview": {
+    "title": "Review long-list behavior",
+    "description": "This response comes from the long-list scenario.",
+    "isCompleted": false
+  },
+  "source": "Seedbox sample mock route",
+  "scenario": "long-list"
+}

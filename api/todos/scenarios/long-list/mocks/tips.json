@@ -1,0 +1,9 @@
+{
+  "tips": [
+    "This scenario contains enough records to exercise pagination and scrolling.",
+    "Use the tabs to compare active and completed totals.",
+    "Edit a long-list item to test dense list interactions."
+  ],
+  "source": "Seedbox sample mock route",
+  "scenario": "long-list"
+}

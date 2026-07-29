@@ -3,6 +3,7 @@
 !/public/todos/
 !/public/todos/**
 /api/*/id/
+/api/*/scenarios/*/records/
 /api/*/.write.lock
 /routes/.write.lock
 .DS_Store

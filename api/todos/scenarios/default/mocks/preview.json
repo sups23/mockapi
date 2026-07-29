@@ -1,0 +1,9 @@
+{
+    "preview": {
+        "title": "Sample todo preview",
+        "description": "This response comes from the default scenario.",
+        "isCompleted": false
+    },
+    "source": "Seedbox sample mock route",
+    "scenario": "default"
+}

@@ -1,19 +1,19 @@
 {
     "/api/todos/stats": {
         "GET": {
-            "file": "api/mocks/todos/stats.json",
+            "file": "api/todos/scenarios/{{activeScenario}}/mocks/stats.json",
             "status": 200
         }
     },
     "/api/todos/tips": {
         "GET": {
-            "file": "api/mocks/todos/tips.json",
+            "file": "api/todos/scenarios/{{activeScenario}}/mocks/tips.json",
             "status": 200
         }
     },
     "/api/todos/{slug}/preview": {
         "GET": {
-            "file": "api/mocks/todos/preview.json",
+            "file": "api/todos/scenarios/{{activeScenario}}/mocks/preview.json",
             "status": 200,
             "headers": {
                 "X-Sample-Route": "todos-preview"

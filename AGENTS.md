@@ -25,6 +25,7 @@ Useful URLs:
 /                 Seedbox API workspace
 /seedbox          Seedbox workspace alias
 /api/posts        Posts collection (convention-based CRUD)
+/scenario-config  Active scenario selector (localhost only)
 ```
 
 ## Architecture
@@ -35,6 +36,7 @@ Useful URLs:
 - `server/api/schema.php` parses structured schema definitions with types, defaults, and flags.
 - `server/api/repository.php` provides file locking, atomic writes, seed initialization, and reset.
 - `server/api/resource-config.php` validates and atomically generates new CRUD resource packages.
+- `server/api/scenario-config.php` validates and persists the active fixture scenario.
 - `server/api/list.php` implements filtering, sorting, projection, pagination, and schema-aware filter validation.
 - `server/helpers.php` contains nested-field, query, and JSON header helpers.
 - `seedbox.php` renders the workspace shown at `/` and `/seedbox`.
@@ -47,8 +49,10 @@ Any directory under `api/` containing both `schema.json` and `list.json` is auto
 api/posts/
   schema.json    # Field types, defaults, editability
   list.json      # Fields projection, pagination, disable
-  seed.json      # Initial data (optional, [] = start empty)
-  id/            # Runtime records
+  scenarios/     # Named fixture scenarios
+    default/
+      seed.json
+      records/    # Runtime records for the scenario
 ```
 
 Automatic endpoints:
@@ -68,7 +72,7 @@ Disable operations in `list.json`:
 {
   "fields": ["id", "title", "version"],
   "_limit": 10,
-  "last_id": 0,
+  "activeScenario": "default",
   "disable": ["delete", "reset"]
 }
 ```
@@ -81,11 +85,12 @@ Supported: `list`, `create`, `read`, `patch`, `delete`, `reset`. Disabled operat
 api/{resource}/
   schema.json
   list.json
-  seed.json
-  id/{number}.json
+  scenarios/{name}/
+    seed.json
+    records/{number}.json
 ```
 
-IDs are sequential integers tracked by `list.json:last_id` and checked against existing record filenames before creation.
+IDs are sequential integers scoped to the active scenario and checked against existing record filenames before creation. `list.json:activeScenario` persists the globally selected scenario.
 
 `schema.json` defines field types, editability flags, defaults, and automatic status. Reserved server-managed fields are `id`, `createdAt`, `modifiedAt`, and `version`.
 
@@ -112,12 +117,13 @@ The homepage is the primary Seedbox workspace. It includes:
 - Response status bars and pretty-printed JSON bodies.
 - Response search with highlight and match navigation.
 - Persisted light/dark theme selection in `localStorage`.
+- Scenario dropdowns that switch the globally active fixture dataset.
 
 ## Seed and Reset
 
-- `seed.json` is the canonical fixture dataset. Automatically hydrated on first access when `id/` is empty.
-- Empty seed `[]` means the app starts with no records.
-- `POST /api/{resource}/reset` wipes runtime records and re-seeds. Used for test isolation and CI.
+- Each `scenarios/{name}/seed.json` is the canonical fixture dataset for that scenario. It is automatically hydrated on first access when the scenario's `records/` directory is empty.
+- Empty scenario seed `[]` means that scenario starts with no records.
+- `POST /api/{resource}/reset` wipes active scenario records and re-seeds them. Used for test isolation and CI.
 - Seed records require unique positive integer `id` values and type-valid fields.
 
 ## Verification
@@ -132,6 +138,7 @@ php -l server/helpers.php
 php -l server/api/schema.php
 php -l server/api/repository.php
 php -l server/api/resource-config.php
+php -l server/api/scenario-config.php
 php -l server/api/list.php
 php -l server/api/route.php
 curl -s http://localhost:8000/api/posts

@@ -1,0 +1,9 @@
+{
+    "tips": [
+        "This empty scenario is useful for testing first-use states.",
+        "Add a todo to exercise the create request.",
+        "Switch scenarios from the Seedbox workspace without changing the backend."
+    ],
+    "source": "Seedbox sample mock route",
+    "scenario": "empty"
+}

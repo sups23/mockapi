@@ -1,0 +1,9 @@
+{
+    "preview": {
+        "title": "No todo selected",
+        "description": "This response comes from the empty scenario.",
+        "isCompleted": false
+    },
+    "source": "Seedbox sample mock route",
+    "scenario": "empty"
+}

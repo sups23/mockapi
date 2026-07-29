@@ -10,8 +10,10 @@ Create or update convention-based CRUD resource packages under `api/{resource}/`
 api/{resource}/
   schema.json
   list.json
-  seed.json
-  id/
+  scenarios/
+    default/
+      seed.json
+      records/
 ```
 
 Prefer the existing Seedbox **Create Route** wizard or `POST /routes-config` for a new resource. Use direct JSON edits only when updating an existing resource or when a user explicitly asks for files.
@@ -63,16 +65,16 @@ Expose fields needed by collection views and configure operations deliberately.
 {
   "fields": ["id", "name", "price", "active", "version"],
   "_limit": 10,
-  "last_id": 3,
+  "activeScenario": "default",
   "disable": []
 }
 ```
 
 Use `disable` when the described API should not allow a generated CRUD operation. Available values are `list`, `create`, `read`, `patch`, `delete`, and `reset`.
 
-### `seed.json`
+### Scenario Seeds
 
-Provide a representative JSON array with unique positive integer IDs. Seed records must satisfy the schema and include server-managed values.
+Provide a representative JSON array in `scenarios/{scenario}/seed.json` with unique positive integer IDs. Seed records must satisfy the schema and include server-managed values.
 
 ```json
 [
@@ -89,7 +91,11 @@ Provide a representative JSON array with unique positive integer IDs. Seed recor
 ]
 ```
 
-Use `[]` when the resource should begin empty. Set `last_id` to the highest seed ID.
+Use `[]` when a scenario should begin empty. IDs are allocated independently per scenario, so no separate ID counter is required.
+
+Create additional scenario directories for UI and integration states such as
+`empty`, `error-state`, `long-list`, or `completed`. Set the globally active
+scenario from the Seedbox homepage or with `POST /scenario-config`.
 
 ## Fixture Quality
 
@@ -97,12 +103,15 @@ Use `[]` when the resource should begin empty. Set `last_id` to the highest seed
 - Make values internally consistent. Dates, totals, statuses, and relationships should agree.
 - Avoid secrets, real customer data, production credentials, and unnecessary personal information.
 - Keep fixtures deterministic. Do not generate changing timestamps or random values unless explicitly requested.
-- Update both `seed.json` and runtime `id/{id}.json` when the user expects immediate current runtime data. Otherwise use `POST /api/{resource}/reset` to hydrate the seed.
+- Keep scenario seeds in source control. Runtime `scenarios/{scenario}/records/`
+  files are generated and ignored. Use `POST /api/{resource}/reset` to hydrate
+  the currently active scenario.
 
 ## Validate
 
 1. Confirm schema names and types match the requirements or code.
 2. Confirm every seed record has a unique positive integer `id` and valid values.
-3. Confirm `list.json.fields` contains only schema fields and `last_id` matches the highest fixture ID.
+3. Confirm `list.json.fields` contains only schema fields and
+   `activeScenario` names an existing scenario directory.
 4. Run PHP lint and request the affected list and read endpoints.
 5. Report the resources, assumptions, and verification performed.

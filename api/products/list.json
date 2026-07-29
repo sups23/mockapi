@@ -1,0 +1,11 @@
+{
+    "fields": [
+        "id",
+        "name",
+        "price",
+        "version"
+    ],
+    "_limit": 10,
+    "activeScenario": "default",
+    "disable": []
+}

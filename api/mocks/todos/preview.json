@@ -1,8 +1,0 @@
-{
-    "preview": {
-        "title": "Sample todo preview",
-        "description": "This response comes from a parameterized mock route.",
-        "isCompleted": false
-    },
-    "source": "Seedbox sample mock route"
-}

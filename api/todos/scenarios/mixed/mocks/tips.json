@@ -1,0 +1,9 @@
+{
+  "tips": [
+    "This scenario mixes active and completed work for filter testing.",
+    "Toggle items to compare PATCH responses with the current fixture.",
+    "Switch to the long-list scenario to test pagination and scrolling."
+  ],
+  "source": "Seedbox sample mock route",
+  "scenario": "mixed"
+}

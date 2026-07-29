@@ -1,0 +1,14 @@
+[
+  { "id": 1, "version": 1, "title": "Review onboarding flow", "description": "Check the first-run experience on mobile.", "isCompleted": true },
+  { "id": 2, "version": 1, "title": "Write API integration notes", "description": "Document the client request and response shapes.", "isCompleted": true },
+  { "id": 3, "version": 1, "title": "Add empty state", "description": "Design the screen shown when there are no tasks.", "isCompleted": false },
+  { "id": 4, "version": 1, "title": "Test keyboard navigation", "description": "Verify focus order and submit behavior.", "isCompleted": false },
+  { "id": 5, "version": 1, "title": "Check tablet layout", "description": "Review the responsive layout at medium widths.", "isCompleted": false },
+  { "id": 6, "version": 1, "title": "Prepare demo script", "description": "List the scenario switches to show during the demo.", "isCompleted": true },
+  { "id": 7, "version": 1, "title": "Verify error handling", "description": "Confirm the client displays API failures clearly.", "isCompleted": false },
+  { "id": 8, "version": 1, "title": "Review copy", "description": "Tighten labels, hints, and empty-state messages.", "isCompleted": true },
+  { "id": 9, "version": 1, "title": "Test long titles", "description": "Check wrapping and action placement.", "isCompleted": false },
+  { "id": 10, "version": 1, "title": "Check completed filter", "description": "Make sure completed items remain discoverable.", "isCompleted": true },
+  { "id": 11, "version": 1, "title": "Run smoke test", "description": "Exercise create, patch, toggle, and delete requests.", "isCompleted": false },
+  { "id": 12, "version": 1, "title": "Capture screenshots", "description": "Prepare visuals for the project announcement.", "isCompleted": false }
+]

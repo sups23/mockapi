@@ -1,0 +1,9 @@
+{
+    "tips": [
+        "Use the Done tab to inspect completed work.",
+        "Toggle a completed todo to exercise a PATCH request.",
+        "Switch scenarios to test active and empty states independently."
+    ],
+    "source": "Seedbox sample mock route",
+    "scenario": "completed"
+}

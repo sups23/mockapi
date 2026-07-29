@@ -38,18 +38,19 @@ function explorer_summary($docRoot, $route) {
     }
     if ($op === 'reset') {
         $resource = resource_from_url($route['url'] ?? '');
-        $seedPath = $resource ? $docRoot . '/api/' . $resource . '/seed.json' : '';
+        $scenario = $resource ? active_scenario($docRoot, $resource) : null;
+        $seedPath = ($resource && $scenario) ? scenario_dir($docRoot, $resource, $scenario) . '/seed.json' : '';
         $count = 0;
         if ($seedPath && file_exists($seedPath)) {
             $s = json_decode(file_get_contents($seedPath), true);
             if (is_array($s)) $count = count($s);
         }
-        return "destructive | $count seed records";
+        return "destructive | $count $scenario records";
     }
     $sf = $route['path'] ?? '';
     if ($sf === '') {
         $resource = resource_from_url($route['url'] ?? '');
-        $sf = $resource ? "api/$resource/id/{id}.json" : '(derived)';
+        $sf = $resource ? "api/$resource/scenarios/{scenario}/records/{id}.json" : '(derived)';
     }
     return "&rarr; $sf";
 }
@@ -92,7 +93,8 @@ function explorer_default_body_json($schemaFields) {
 function explorer_has_seed($docRoot, $route) {
     $resource = resource_from_url($route['url'] ?? '');
     if (!$resource) return false;
-    return file_exists($docRoot . '/api/' . $resource . '/seed.json');
+    $scenario = active_scenario($docRoot, $resource);
+    return $scenario !== null && file_exists(scenario_dir($docRoot, $resource, $scenario) . '/seed.json');
 }
 
 $docRoot = __DIR__;
@@ -112,7 +114,8 @@ $docRoot = __DIR__;
 .toolbar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:22px; align-items:center; } .toolbar input { flex:1 1 220px; border:1px solid var(--line); border-radius:5px; padding:8px 12px; background:var(--input-bg); color:var(--text); }
 .group { margin:22px 0; border:1px solid var(--line); border-radius:8px; background:var(--surface); overflow:hidden; box-shadow:0 1px 2px #00000008; }
 .group-head { display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--line); cursor:pointer; } .group-head:hover { background:var(--hover); }
-.group-head h2 { margin:0; font-size:16px; font-weight:600; } .group-head .group-meta { color:var(--muted); font-size:12px; margin-left:auto; display:flex; gap:12px; align-items:center; }
+ .group-head h2 { margin:0; font-size:16px; font-weight:600; } .group-head .group-meta { color:var(--muted); font-size:12px; margin-left:auto; display:flex; gap:12px; align-items:center; }
+ .scenario-select { border:1px solid var(--line); border-radius:4px; padding:4px 7px; background:var(--input-bg); color:var(--text); font-size:12px; }
 .group-chevron { color:var(--muted); transition:transform .15s; font-size:12px; } .group.open .group-chevron { transform:rotate(90deg); }
 .group-body { display:none; } .group.open .group-body { display:block; }
 
@@ -230,9 +233,11 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
     $groupId = htmlspecialchars($group['id'], ENT_QUOTES);
     $groupLabel = htmlspecialchars($group['label'], ENT_QUOTES);
     $groupRoutes = $group['routes'] ?? [];
+    $groupScenarios = !empty($group['crud']) ? scenario_names($docRoot, $group['id']) : [];
+    $groupActiveScenario = !empty($group['crud']) ? active_scenario($docRoot, $group['id']) : null;
 ?>
 <section class="group" data-resource="group:<?= strtolower($groupId) ?>">
-<div class="group-head"><h2><?= $groupLabel ?></h2><div class="group-meta"><span><?= count($groupRoutes) ?> route(s)</span><span class="group-chevron">&#9654;</span></div></div>
+<div class="group-head"><h2><?= $groupLabel ?></h2><div class="group-meta"><span><?= count($groupRoutes) ?> route(s)</span><?php if (!empty($groupScenarios)): ?><select class="scenario-select" aria-label="Active scenario for <?= $groupLabel ?>" onchange="switchScenario('<?= $groupId ?>', this.value)" onclick="event.stopPropagation()"><?php foreach ($groupScenarios as $scenario): ?><option value="<?= htmlspecialchars($scenario, ENT_QUOTES) ?>"<?= $scenario === $groupActiveScenario ? ' selected' : '' ?>><?= htmlspecialchars($scenario) ?></option><?php endforeach; ?></select><?php endif; ?><span class="group-chevron">&#9654;</span></div></div>
 <div class="group-body">
 <?php foreach ($groupRoutes as $ri => $route):
     $method = strtoupper($route['method'] ?? 'GET');
@@ -247,10 +252,8 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
     $filterMethod = strtolower($method);
     $filterOp = strtolower($operation);
 
-    $allFields = [];
     $editableFields = [];
-    if (in_array($operation, ['list', 'create', 'patch'])) {
-        $allFields = explorer_schema_fields($docRoot, $route, false);
+    if (in_array($operation, ['create', 'patch'])) {
         $editableFields = explorer_schema_fields($docRoot, $route, true);
     }
     $defaultBody = '';
@@ -269,7 +272,7 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
 </div>
 <div class="endpoint-body">
   <?php if ($operation === 'list'): ?>
-  <p class="endpoint-desc">Paginated list. Supports filters, search, range queries, and CSV array matching. Unknown filter fields return 400. Range operators only work on number/datetime fields.</p>
+  <p class="endpoint-desc">Retrieve a paginated collection. Add query parameters as needed.</p>
   <?php elseif ($operation === 'create'): ?>
   <p class="endpoint-desc">Create a new record. Fields are validated against schema.json. Server-managed fields (id, createdAt, modifiedAt, version) are rejected with 400. Body is pre-filled with schema defaults.</p>
   <?php elseif ($operation === 'patch'): ?>
@@ -279,7 +282,7 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
   <?php elseif ($operation === 'read'): ?>
   <p class="endpoint-desc">Retrieve a single record by ID. Contains the current version needed for DELETE.</p>
   <?php elseif ($operation === 'reset'): ?>
-  <p class="endpoint-desc">Wipe all runtime records and re-seed from seed.json. Destructive operation useful for test isolation and CI.</p>
+   <p class="endpoint-desc">Wipe all records in the active scenario and re-seed from that scenario's seed.json. Destructive operation useful for test isolation and CI.</p>
   <?php else: ?>
   <p class="endpoint-desc">Static mock response served from file.</p>
   <?php endif; ?>
@@ -297,20 +300,8 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
   <?php endif; ?>
 
   <?php if ($operation === 'list'): ?>
-  <div class="form-row"><span class="param-name">_page</span><span class="param-type">number</span><input type="text" name="_page" value="1"><span class="param-name">_sort</span><span class="param-type">string</span><input type="text" name="_sort" placeholder="field:ASC;field:DESC"><span class="toggle-filters" onclick="toggleExtra(this)">+ filters</span></div>
-  <div class="extra-params" style="display:none">
-    <?php if (!empty($allFields)): ?>
-    <div class="filters-note">Fields: <?php foreach ($allFields as $f => $def): ?><code><?= htmlspecialchars($f) ?> (<?= htmlspecialchars($def['type']) ?>)</code> <?php endforeach; ?></div>
-    <?php endif; ?>
-    <div class="filters-note">Filters: <code>field=value</code> | Range: <code>field__LTE=10</code> <code>field__GTE=5</code> (numbers only) | Search: <code>field__SEARCH=text</code> (strings/arrays) | NE: <code>field__NE=val</code></div>
-    <div class="form-row">
-      <input type="text" class="field-key" placeholder="field or field__LTE / field__SEARCH" style="flex:1">
-      <span>=</span>
-      <input type="text" class="field-val" placeholder="value" style="flex:1">
-      <button type="button" class="btn btn-reset" onclick="addFilter(this)">+ Add</button>
-    </div>
-    <div class="dynamic-filters"></div>
-  </div>
+  <div class="form-row"><span class="param-name">_page</span><span class="param-type">number</span><input type="text" name="_page" value="1"><button type="button" class="btn btn-reset" onclick="addQueryParam('extra-q-<?= $uid ?>')">+ Add query param</button></div>
+  <div class="dynamic-filters" id="extra-q-<?= $uid ?>"></div>
   <?php endif; ?>
 
   <?php if ($operation === 'create'): ?>
@@ -343,7 +334,7 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
   <?php endif; ?>
 
   <?php if ($operation === 'reset'): ?>
-  <p class="warning">This permanently deletes all runtime records and re-seeds from seed.json. <?php if (!$hasSeed): ?>No seed.json found for this resource.<?php endif; ?></p>
+   <p class="warning">This permanently deletes all records in the active scenario and re-seeds from its seed.json. <?php if (!$hasSeed): ?>No seed.json found for this scenario.<?php endif; ?></p>
   <?php endif; ?>
 
   <?php if ($operation === 'mock' && in_array($method, ['POST', 'PUT', 'PATCH'], true)): ?>
@@ -462,12 +453,6 @@ textarea { width:100%; border:1px solid var(--line); border-radius:5px; padding:
 <script>
 document.querySelectorAll('.group-head').forEach(function(h) { h.addEventListener('click', function(e) { if (e.target.closest('button')) return; h.parentElement.classList.toggle('open'); }); });
 function toggleEndpoint(header) { header.parentElement.classList.toggle('open'); }
-function toggleExtra(el) {
-    var extra = el.closest('.form-row').nextElementSibling;
-    if (!extra || !extra.classList.contains('extra-params')) extra = el.closest('.form-row').parentElement.querySelector('.extra-params');
-    if (extra) { var v = extra.style.display === 'block'; extra.style.display = v ? 'none' : 'block'; el.textContent = v ? '+ filters' : '- filters'; }
-}
-
 document.getElementById('resourceFilter').addEventListener('input', function() {
     var v = this.value.toLowerCase();
     document.querySelectorAll('.group').forEach(function(g) {
@@ -482,21 +467,6 @@ document.getElementById('resourceFilter').addEventListener('input', function() {
 });
 function expandAll() { document.querySelectorAll('.group').forEach(function(g) { g.classList.add('open'); }); document.querySelectorAll('.endpoint').forEach(function(e) { e.classList.add('open'); }); }
 function collapseAll() { document.querySelectorAll('.group').forEach(function(g) { g.classList.remove('open'); }); document.querySelectorAll('.endpoint').forEach(function(e) { e.classList.remove('open'); }); }
-
-function addFilter(btn) {
-    var row = btn.closest('.form-row');
-    var keyInput = row.querySelector('.field-key');
-    var valInput = row.querySelector('.field-val');
-    var k = keyInput.value.trim(), v = valInput.value.trim();
-    if (!k) return;
-    var container = row.parentElement.querySelector('.dynamic-filters');
-    var div = document.createElement('div');
-    div.className = 'form-row';
-    div.innerHTML = '<code style="font-size:11px;min-width:80px;word-break:break-all">' + escHtml(k) + '</code><span>=</span><code style="font-size:11px;flex:1;word-break:break-all">' + escHtml(v) + '</code><button type="button" class="btn btn-small" onclick="this.parentElement.remove()">X</button>';
-    div.dataset.key = k; div.dataset.val = v;
-    container.appendChild(div);
-    keyInput.value = ''; valInput.value = '';
-}
 
 function patchFieldChanged(uid) {
     var fieldEl = document.getElementById('patch-field-' + uid);
@@ -544,12 +514,6 @@ async function tryRequest(formId) {
     var qs = new URLSearchParams();
     var pageEl = form.querySelector('[name=_page]');
     if (pageEl && pageEl.value) qs.set('_page', pageEl.value);
-    var sortEl = form.querySelector('[name=_sort]');
-    if (sortEl && sortEl.value) qs.set('_sort', sortEl.value);
-
-    form.querySelectorAll('.dynamic-filters .form-row').forEach(function(row) {
-        if (row.dataset.key) qs.set(row.dataset.key, row.dataset.val || '');
-    });
     form.querySelectorAll('[id^="extra-q-"] .form-row').forEach(function(row) {
         var k = row.querySelector('.field-key'), v = row.querySelector('.field-val');
         if (k && v && k.value) qs.set(k.value, v.value);
@@ -944,6 +908,26 @@ async function submitCreator() {
         errEl.textContent = 'Network error: ' + e.message;
         errEl.classList.add('visible');
         document.getElementById('creatorSubmit').disabled = false;
+    }
+}
+
+async function switchScenario(resource, scenario) {
+    try {
+        var resp = await fetch('/scenario-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resource: resource, scenario: scenario })
+        });
+        var text = await resp.text();
+        var data;
+        try { data = JSON.parse(text); } catch(e) { data = { error: text }; }
+        if (!resp.ok || !data.updated) {
+            throw new Error(data.error || 'Could not switch scenario');
+        }
+        location.reload();
+    } catch (e) {
+        window.alert(e.message);
+        location.reload();
     }
 }
 

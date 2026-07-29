@@ -68,6 +68,13 @@ function load_route_file($docRoot, $resource) {
             if ($jsonPath === false) {
                 return [null, "Route $method $urlPattern: could not resolve data path"];
             }
+            if (is_string($jsonPath) && str_contains($jsonPath, '{{activeScenario}}')) {
+                $activeScenario = active_scenario($docRoot, $resource);
+                if ($activeScenario === null) {
+                    return [null, "Route $method $urlPattern: active scenario does not exist"];
+                }
+                $jsonPath = str_replace('{{activeScenario}}', $activeScenario, $jsonPath);
+            }
 
             $routes[] = [
                 'method' => strtoupper($method),
@@ -326,7 +333,11 @@ function handle_crud_route($docRoot, $uri, $method, $parts) {
         return;
     }
 
-    @init_resource($docRoot, $resource);
+    list($initialized, $initErr) = init_resource($docRoot, $resource);
+    if (!$initialized) {
+        route_error(500, $initErr ?? 'Could not initialize resource');
+        return;
+    }
 
     switch ($operation) {
         case 'list':
@@ -486,7 +497,13 @@ function serve_list_route($docRoot, $resource) {
     $schemaPath = $docRoot . '/api/' . $resource . '/schema.json';
     list($schema) = load_schema($schemaPath);
 
-    serve_list_json($listPath, $schema);
+    $recordsDir = active_records_dir($docRoot, $resource);
+    if ($recordsDir === null) {
+        route_error(500, 'Active scenario does not exist');
+        return;
+    }
+
+    serve_list_json($listPath, $schema, $recordsDir);
 }
 
 function parse_body_json() {
@@ -590,7 +607,6 @@ function validate_patch_body($body, $schema) {
 function handle_create_route($docRoot, $resource) {
     $resDir = resource_dir($docRoot, $resource);
     $schemaPath = $resDir . '/schema.json';
-    $listPath = $resDir . '/list.json';
 
     list($schema, $schemaErr) = load_schema($schemaPath);
     if ($schemaErr !== null) {
@@ -610,20 +626,11 @@ function handle_create_route($docRoot, $resource) {
         return;
     }
 
-    if (!is_dir($resDir)) {
-        if (!mkdir($resDir, 0755, true)) {
-            route_error(500, 'Could not create resource directory');
-            return;
-        }
-    }
-
-    if (!file_exists($listPath)) {
-        $schemaFieldKeys = array_keys($schema);
-        $ok = write_json_atomic($resDir, 'list.json', ['fields' => $schemaFieldKeys, 'last_id' => 0]);
-        if (!$ok[0]) {
-            route_error(500, 'Could not initialize list.json');
-            return;
-        }
+    $scenario = active_scenario($docRoot, $resource);
+    $recordsDir = active_records_dir($docRoot, $resource);
+    if ($scenario === null || $recordsDir === null) {
+        route_error(500, 'Active scenario does not exist');
+        return;
     }
 
     list($handle, $lockErr) = acquire_lock($resDir);
@@ -633,19 +640,15 @@ function handle_create_route($docRoot, $resource) {
     }
 
     try {
-        $idDir = id_dir($docRoot, $resource);
-        if (!is_dir($idDir)) {
-            if (!mkdir($idDir, 0755, true)) {
+        if (!is_dir($recordsDir)) {
+            if (!mkdir($recordsDir, 0755, true)) {
                 release_lock($handle);
-                route_error(500, 'Could not create id directory');
+                route_error(500, 'Could not create scenario records directory');
                 return;
             }
         }
 
-        list($listData) = read_json($listPath);
-        if (!is_array($listData)) $listData = [];
-
-        $nextId = get_next_id($docRoot, $resource);
+        $nextId = get_next_id($docRoot, $resource, $scenario);
         $now = date('Y-m-d\TH:i:s.v\Z');
 
         $item = [
@@ -663,18 +666,10 @@ function handle_create_route($docRoot, $resource) {
             }
         }
 
-        list($ok, $writeErr) = write_json_atomic($idDir, $nextId . '.json', $item);
+        list($ok, $writeErr) = write_json_atomic($recordsDir, $nextId . '.json', $item);
         if (!$ok) {
             release_lock($handle);
             route_error(500, 'Failed to write record: ' . $writeErr);
-            return;
-        }
-
-        $listData['last_id'] = $nextId;
-        list($ok, $writeErr) = write_json_atomic($resDir, 'list.json', $listData);
-        if (!$ok) {
-            release_lock($handle);
-            route_error(500, 'Record created but failed to update list.json: ' . $writeErr);
             return;
         }
 
@@ -687,7 +682,8 @@ function handle_create_route($docRoot, $resource) {
 }
 
 function serve_crud_read($docRoot, $resource, $id) {
-    $recordPath = $docRoot . '/api/' . $resource . '/id/' . $id . '.json';
+    $recordsDir = active_records_dir($docRoot, $resource);
+    $recordPath = $recordsDir ? $recordsDir . '/' . $id . '.json' : '';
     if (!file_exists($recordPath)) {
         route_error(404, 'Record not found');
         return;
@@ -703,7 +699,8 @@ function serve_crud_read($docRoot, $resource, $id) {
 }
 
 function handle_patch_route($docRoot, $resource, $id) {
-    $recordPath = $docRoot . '/api/' . $resource . '/id/' . $id . '.json';
+    $recordsDir = active_records_dir($docRoot, $resource);
+    $recordPath = $recordsDir ? $recordsDir . '/' . $id . '.json' : '';
     if (!file_exists($recordPath)) {
         route_error(404, 'Record not found');
         return;
@@ -780,7 +777,8 @@ function handle_patch_route($docRoot, $resource, $id) {
 }
 
 function handle_delete_route($docRoot, $resource, $id) {
-    $recordPath = $docRoot . '/api/' . $resource . '/id/' . $id . '.json';
+    $recordsDir = active_records_dir($docRoot, $resource);
+    $recordPath = $recordsDir ? $recordsDir . '/' . $id . '.json' : '';
     if (!file_exists($recordPath)) {
         route_error(404, 'Record not found');
         return;

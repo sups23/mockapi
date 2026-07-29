@@ -193,13 +193,12 @@ function handle_resource_config($docRoot) {
         }
     }
 
-    $maxId = !empty($ids) ? max($ids) : 0;
-
     $touched = [];
 
     try {
         $resDir = $docRoot . '/api/' . $model;
-        $idDir = $resDir . '/id';
+        $scenarioDir = scenario_dir($docRoot, $model, 'default');
+        $recordsDir = scenario_records_dir($docRoot, $model, 'default');
 
         if (!is_dir($resDir)) {
             if (!mkdir($resDir, 0755, true)) {
@@ -211,15 +210,15 @@ function handle_resource_config($docRoot) {
             $touched[] = $resDir;
         }
 
-        if (!is_dir($idDir)) {
-            if (!mkdir($idDir, 0755, true)) {
+        if (!is_dir($recordsDir)) {
+            if (!mkdir($recordsDir, 0755, true)) {
                 cleanup_touched($touched);
                 http_response_code(500);
                 header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['error' => 'Could not create id directory'], JSON_PRETTY_PRINT) . "\n";
+                echo json_encode(['error' => 'Could not create scenario records directory'], JSON_PRETTY_PRINT) . "\n";
                 return;
             }
-            $touched[] = $idDir;
+            $touched[] = $recordsDir;
         }
 
         list($ok, $writeErr) = write_json_atomic($resDir, 'schema.json', $completeSchema);
@@ -234,7 +233,7 @@ function handle_resource_config($docRoot) {
         list($ok, $writeErr) = write_json_atomic($resDir, 'list.json', [
             'fields' => $listFields,
             '_limit' => $limit,
-            'last_id' => $maxId,
+            'activeScenario' => 'default',
             'disable' => $disabledOps,
         ]);
         if (!$ok) {
@@ -246,7 +245,7 @@ function handle_resource_config($docRoot) {
         }
 
         foreach ($seed as $record) {
-            list($ok, $writeErr) = write_json_atomic($idDir, $record['id'] . '.json', $record);
+            list($ok, $writeErr) = write_json_atomic($recordsDir, $record['id'] . '.json', $record);
             if (!$ok) {
                 cleanup_touched($touched);
                 http_response_code(500);
@@ -256,7 +255,7 @@ function handle_resource_config($docRoot) {
             }
         }
 
-        list($ok, $writeErr) = write_json_atomic($resDir, 'seed.json', $seed);
+        list($ok, $writeErr) = write_json_atomic($scenarioDir, 'seed.json', $seed);
         if (!$ok) {
             cleanup_touched($touched);
             http_response_code(500);
@@ -283,7 +282,8 @@ function handle_resource_config($docRoot) {
             'limit' => $limit,
             'fields' => count($userSchema),
             'seeded' => count($seed),
-            'last_id' => $maxId,
+            'activeScenario' => 'default',
+            'scenarios' => ['default'],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
     } catch (\Throwable $e) {
         cleanup_touched($touched);

@@ -89,7 +89,7 @@ function handle_mock_route_config($docRoot) {
         mock_config_error(400, 'Response body is required');
         return;
     }
-    $pathErr = validate_path_entry($path, [$routeMethod => ['file' => 'api/mocks/placeholder.json', 'status' => $status]]);
+    $pathErr = validate_path_entry($path, [$routeMethod => ['file' => 'api/' . $resource . '/scenarios/{{activeScenario}}/mocks/placeholder.json', 'status' => $status]]);
     if ($pathErr !== null) {
         mock_config_error(400, $pathErr);
         return;
@@ -125,22 +125,35 @@ function handle_mock_route_config($docRoot) {
             return;
         }
 
-        $responseDir = $docRoot . '/api/mocks/' . $resource;
-        $responseFilename = mock_response_filename($responseDir, $path, $routeMethod);
-        list($ok, $writeErr) = write_json_atomic($responseDir, $responseFilename, $body['response']);
-        if (!$ok) {
-            mock_config_error(500, 'Failed to write mock response: ' . $writeErr);
+        $activeScenario = active_scenario($docRoot, $resource);
+        if ($activeScenario === null) {
+            mock_config_error(500, 'Active scenario does not exist');
             return;
+        }
+
+        $scenarioNames = scenario_names($docRoot, $resource);
+        $activeResponseDir = scenario_dir($docRoot, $resource, $activeScenario) . '/mocks';
+        $responseFilename = mock_response_filename($activeResponseDir, $path, $routeMethod);
+        $writtenResponses = [];
+        foreach ($scenarioNames as $scenarioName) {
+            $responseDir = scenario_dir($docRoot, $resource, $scenarioName) . '/mocks';
+            list($ok, $writeErr) = write_json_atomic($responseDir, $responseFilename, $body['response']);
+            if (!$ok) {
+                foreach ($writtenResponses as $written) @unlink($written);
+                mock_config_error(500, 'Failed to write mock response: ' . $writeErr);
+                return;
+            }
+            $writtenResponses[] = $responseDir . '/' . $responseFilename;
         }
 
         if (!isset($routes[$path])) $routes[$path] = [];
         $routes[$path][$routeMethod] = [
-            'file' => 'api/mocks/' . $resource . '/' . $responseFilename,
+            'file' => 'api/' . $resource . '/scenarios/{{activeScenario}}/mocks/' . $responseFilename,
             'status' => $status,
         ];
         list($ok, $writeErr) = write_json_atomic($routesDir, $routeFilename, $routes);
         if (!$ok) {
-            @unlink($responseDir . '/' . $responseFilename);
+            foreach ($writtenResponses as $written) @unlink($written);
             mock_config_error(500, 'Failed to write mock route: ' . $writeErr);
             return;
         }

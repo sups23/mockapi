@@ -6,8 +6,50 @@ function resource_dir($docRoot, $resource) {
     return $docRoot . '/api/' . $resource;
 }
 
-function id_dir($docRoot, $resource) {
-    return resource_dir($docRoot, $resource) . '/id';
+function scenarios_dir($docRoot, $resource) {
+    return resource_dir($docRoot, $resource) . '/scenarios';
+}
+
+function scenario_dir($docRoot, $resource, $scenario) {
+    return scenarios_dir($docRoot, $resource) . '/' . $scenario;
+}
+
+function scenario_records_dir($docRoot, $resource, $scenario) {
+    return scenario_dir($docRoot, $resource, $scenario) . '/records';
+}
+
+function is_valid_scenario_name($scenario) {
+    return is_string($scenario) && preg_match('/^[a-z][a-z0-9-]*$/', $scenario) && strlen($scenario) <= 64;
+}
+
+function resource_config($docRoot, $resource) {
+    list($data, $err) = read_json(resource_dir($docRoot, $resource) . '/list.json');
+    return $err === null && is_array($data) ? $data : [];
+}
+
+function scenario_names($docRoot, $resource) {
+    $dir = scenarios_dir($docRoot, $resource);
+    if (!is_dir($dir)) return [];
+
+    $names = [];
+    foreach (glob($dir . '/*', GLOB_ONLYDIR) ?: [] as $path) {
+        $name = basename($path);
+        if (is_valid_scenario_name($name)) $names[] = $name;
+    }
+    sort($names, SORT_STRING);
+    return $names;
+}
+
+function active_scenario($docRoot, $resource) {
+    $config = resource_config($docRoot, $resource);
+    $active = $config['activeScenario'] ?? 'default';
+    if (!is_valid_scenario_name($active)) return null;
+    return in_array($active, scenario_names($docRoot, $resource), true) ? $active : null;
+}
+
+function active_records_dir($docRoot, $resource) {
+    $scenario = active_scenario($docRoot, $resource);
+    return $scenario === null ? null : scenario_records_dir($docRoot, $resource, $scenario);
 }
 
 function acquire_lock($resourceDir) {
@@ -74,18 +116,13 @@ function read_json($path) {
     return [$data, null];
 }
 
-function get_next_id($docRoot, $resource) {
-    $listPath = resource_dir($docRoot, $resource) . '/list.json';
-    $idDir = id_dir($docRoot, $resource);
+function get_next_id($docRoot, $resource, $scenario) {
+    $recordsDir = scenario_records_dir($docRoot, $resource, $scenario);
 
-    list($listData) = read_json($listPath);
-    if (!is_array($listData)) $listData = [];
+    $nextId = 1;
 
-    $lastId = isset($listData['last_id']) ? intval($listData['last_id']) : 0;
-    $nextId = $lastId + 1;
-
-    if (is_dir($idDir)) {
-        $existing = glob($idDir . '/*.json');
+    if (is_dir($recordsDir)) {
+        $existing = glob($recordsDir . '/*.json');
         if ($existing !== false) {
             foreach ($existing as $f) {
                 $num = intval(pathinfo($f, PATHINFO_FILENAME));
@@ -99,17 +136,24 @@ function get_next_id($docRoot, $resource) {
 
 function init_resource($docRoot, $resource) {
     $resDir = resource_dir($docRoot, $resource);
-    $idDir = id_dir($docRoot, $resource);
-    $seedPath = $resDir . '/seed.json';
+    $config = resource_config($docRoot, $resource);
+    $active = $config['activeScenario'] ?? 'default';
+    $scenarios = scenario_names($docRoot, $resource);
+    if (!is_valid_scenario_name($active) || !in_array($active, $scenarios, true)) {
+        return [false, "Active scenario '$active' does not exist for resource '$resource'"];
+    }
+
+    $recordsDir = scenario_records_dir($docRoot, $resource, $active);
+    $seedPath = scenario_dir($docRoot, $resource, $active) . '/seed.json';
     $schemaPath = $resDir . '/schema.json';
 
-    if (!is_dir($idDir)) {
-        if (!mkdir($idDir, 0755, true)) {
-            return [false, 'Could not create id directory'];
+    if (!is_dir($recordsDir)) {
+        if (!mkdir($recordsDir, 0755, true)) {
+            return [false, 'Could not create scenario records directory'];
         }
     }
 
-    $existing = glob($idDir . '/*.json');
+    $existing = glob($recordsDir . '/*.json');
     if ($existing !== false && count($existing) > 0) {
         return [true, null];
     }
@@ -131,7 +175,7 @@ function init_resource($docRoot, $resource) {
     if ($lockErr !== null) return [false, $lockErr];
 
     try {
-        $existing = glob($idDir . '/*.json');
+        $existing = glob($recordsDir . '/*.json');
         if ($existing !== false && count($existing) > 0) {
             release_lock($handle);
             return [true, null];
@@ -144,7 +188,6 @@ function init_resource($docRoot, $resource) {
         }
 
         $ids = [];
-        $maxId = 0;
         foreach ($seeds as $i => $seed) {
             if (!is_array($seed)) {
                 release_lock($handle);
@@ -159,30 +202,17 @@ function init_resource($docRoot, $resource) {
                 return [false, "Seed record $i: duplicate id {$seed['id']}"];
             }
             $ids[] = $seed['id'];
-            if ($seed['id'] > $maxId) $maxId = $seed['id'];
-
             $err = validate_seed_types($seed, $schema);
             if ($err !== null) {
                 release_lock($handle);
                 return [false, "Seed record $i (id {$seed['id']}): $err"];
             }
 
-            list($ok, $writeErr) = write_json_atomic($idDir, $seed['id'] . '.json', $seed);
+            list($ok, $writeErr) = write_json_atomic($recordsDir, $seed['id'] . '.json', $seed);
             if (!$ok) {
                 release_lock($handle);
                 return [false, "Failed to write seed record {$seed['id']}: $writeErr"];
             }
-        }
-
-        $listPath = $resDir . '/list.json';
-        list($listData) = read_json($listPath);
-        if (!is_array($listData)) $listData = [];
-        $listData['last_id'] = $maxId;
-
-        list($ok, $writeErr) = write_json_atomic($resDir, 'list.json', $listData);
-        if (!$ok) {
-            release_lock($handle);
-            return [false, "Failed to update list.json: $writeErr"];
         }
 
         release_lock($handle);
@@ -207,8 +237,10 @@ function validate_seed_types($record, $schema) {
 
 function reset_resource($docRoot, $resource) {
     $resDir = resource_dir($docRoot, $resource);
-    $idDir = id_dir($docRoot, $resource);
-    $seedPath = $resDir . '/seed.json';
+    $scenario = active_scenario($docRoot, $resource);
+    if ($scenario === null) return [null, 'Active scenario does not exist'];
+    $recordsDir = scenario_records_dir($docRoot, $resource, $scenario);
+    $seedPath = scenario_dir($docRoot, $resource, $scenario) . '/seed.json';
     $schemaPath = $resDir . '/schema.json';
 
     if (!file_exists($seedPath)) {
@@ -219,17 +251,17 @@ function reset_resource($docRoot, $resource) {
     if ($lockErr !== null) return [null, $lockErr];
 
     try {
-        if (is_dir($idDir)) {
-            $files = glob($idDir . '/*.json');
+        if (is_dir($recordsDir)) {
+            $files = glob($recordsDir . '/*.json');
             if ($files !== false) {
                 foreach ($files as $f) {
                     unlink($f);
                 }
             }
         } else {
-            if (!mkdir($idDir, 0755, true)) {
+            if (!mkdir($recordsDir, 0755, true)) {
                 release_lock($handle);
-                return [null, 'Could not create id directory'];
+                return [null, 'Could not create scenario records directory'];
             }
         }
 
@@ -245,7 +277,6 @@ function reset_resource($docRoot, $resource) {
             return [null, 'Invalid seed data'];
         }
 
-        $maxId = 0;
         $count = 0;
         foreach ($seeds as $i => $seed) {
             if (!isset($seed['id']) || !is_int($seed['id']) || $seed['id'] < 1) {
@@ -259,9 +290,7 @@ function reset_resource($docRoot, $resource) {
                 return [null, "Seed record $i (id {$seed['id']}): $err"];
             }
 
-            if ($seed['id'] > $maxId) $maxId = $seed['id'];
-
-            list($ok, $writeErr) = write_json_atomic($idDir, $seed['id'] . '.json', $seed);
+            list($ok, $writeErr) = write_json_atomic($recordsDir, $seed['id'] . '.json', $seed);
             if (!$ok) {
                 release_lock($handle);
                 return [null, "Failed to write seed record {$seed['id']}: $writeErr"];
@@ -269,19 +298,8 @@ function reset_resource($docRoot, $resource) {
             $count++;
         }
 
-        $listPath = $resDir . '/list.json';
-        list($listData) = read_json($listPath);
-        if (!is_array($listData)) $listData = [];
-        $listData['last_id'] = $maxId;
-
-        list($ok, $writeErr) = write_json_atomic($resDir, 'list.json', $listData);
-        if (!$ok) {
-            release_lock($handle);
-            return [null, "Failed to update list.json: $writeErr"];
-        }
-
         release_lock($handle);
-        return [['reset' => true, 'resource' => $resource, 'seeded' => $count, 'last_id' => $maxId], null];
+        return [['reset' => true, 'resource' => $resource, 'scenario' => $scenario, 'seeded' => $count], null];
     } catch (\Throwable $e) {
         release_lock($handle);
         return [null, 'Reset failed: ' . $e->getMessage()];

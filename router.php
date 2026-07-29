@@ -7,6 +7,7 @@ require_once __DIR__ . '/server/api/list.php';
 require_once __DIR__ . '/server/api/route.php';
 require_once __DIR__ . '/server/api/resource-config.php';
 require_once __DIR__ . '/server/api/mock-route-config.php';
+require_once __DIR__ . '/server/api/scenario-config.php';
 
 function dispatch($docRoot) {
     $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
@@ -23,6 +24,11 @@ function dispatch($docRoot) {
 
     if ($uri === '/mock-route-config') {
         handle_mock_route_config($docRoot);
+        return;
+    }
+
+    if ($uri === '/scenario-config') {
+        handle_scenario_config($docRoot);
         return;
     }
 

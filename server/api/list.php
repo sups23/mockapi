@@ -161,7 +161,7 @@ function sort_items(&$items, $sorts) {
     });
 }
 
-function serve_list_json($listPath, $schema = null) {
+function serve_list_json($listPath, $schema = null, $recordsDir = null) {
     $data = json_decode(file_get_contents($listPath), true);
     if (!is_array($data) || !isset($data['fields']) || !is_array($data['fields'])) {
         send_route_response(500, ['error' => 'List configuration must have a fields array']);
@@ -169,8 +169,7 @@ function serve_list_json($listPath, $schema = null) {
     }
 
     $fields = $data['fields'];
-    $listDir = dirname($listPath);
-    $idDir = $listDir . '/id';
+    $recordsDir = $recordsDir ?? dirname($listPath) . '/scenarios/default/records';
 
     $limit = isset($data['_limit']) ? max(1, intval($data['_limit'])) : 10;
 
@@ -220,8 +219,8 @@ function serve_list_json($listPath, $schema = null) {
     }
 
     $items = [];
-    if (is_dir($idDir)) {
-        $jsonFiles = glob($idDir . '/*.json');
+    if (is_dir($recordsDir)) {
+        $jsonFiles = glob($recordsDir . '/*.json');
         if ($jsonFiles !== false) {
             usort($jsonFiles, function($a, $b) {
                 return intval(pathinfo($b, PATHINFO_FILENAME)) - intval(pathinfo($a, PATHINFO_FILENAME));
